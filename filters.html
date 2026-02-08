@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FaceVerse AR Filters</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎭</text></svg>">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body { overflow: hidden; background-color: #050505; margin: 0; user-select: none; }
+
+        /* --- FILTER BAR --- */
+        #filter-container {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            width: 95%; max-width: 850px;
+            background: rgba(10, 10, 10, 0.8);
+            padding: 12px; border-radius: 24px;
+            border: 1px solid rgba(255,255,255,0.15);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.9);
+            backdrop-filter: blur(20px);
+            overflow-x: auto; white-space: nowrap;
+            display: flex; align-items: center; justify-content: flex-start;
+            z-index: 20; scrollbar-width: none;
+        }
+        #filter-container::-webkit-scrollbar { display: none; }
+
+        .filter-btn {
+            width: 70px; height: 70px;
+            border-radius: 18px;
+            border: 2px solid rgba(255,255,255,0.05);
+            background: linear-gradient(145deg, rgba(255,255,255,0.1), rgba(255,255,255,0.01));
+            color: white; font-size: 32px;
+            cursor: pointer; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: inline-flex; align-items: center; justify-content: center;
+            margin: 0 6px; flex-shrink: 0; position: relative;
+        }
+        .filter-btn:hover { transform: translateY(-5px); background: rgba(255,255,255,0.15); }
+        .filter-btn.active {
+            border-color: var(--accent-color); background: rgba(0, 255, 204, 0.15);
+            transform: scale(1.1); box-shadow: 0 0 30px rgba(0, 255, 204, 0.3);
+        }
+        
+        .label { 
+            position: absolute; bottom: 5px; font-size: 9px; color: rgba(255,255,255,0.8); 
+            font-family: sans-serif; text-transform: uppercase; letter-spacing: 1px; font-weight: 700;
+            opacity: 0; transition: 0.3s; transform: translateY(10px);
+        }
+        .filter-btn:hover .label { opacity: 1; transform: translateY(0); }
+
+        .sep { width: 1px; height: 40px; background: rgba(255,255,255,0.1); margin: 0 12px; }
+
+        #webcam-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+        #output-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); z-index: 10; pointer-events: none; }
+
+        #action-bar { position: absolute; bottom: 140px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; z-index: 25; }
+        .action-btn {
+            padding: 12px 25px; border-radius: 40px; border: none; cursor: pointer;
+            font-family: sans-serif; font-weight: 800; font-size: 0.9rem;
+            display: flex; align-items: center; gap: 8px; transition: 0.3s;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4); backdrop-filter: blur(10px);
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+        .btn-snap { background: linear-gradient(135deg, #fff, #e0e0e0); color: black; }
+        .btn-snap:hover { transform: scale(1.05); box-shadow: 0 0 25px rgba(255,255,255,0.5); }
+        .btn-gallery { background: rgba(20,20,20,0.8); color: white; border: 1px solid rgba(255,255,255,0.2); }
+
+        #flash-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.15s; }
+        #loading {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-family: monospace; color: var(--accent-color); z-index: 50;
+            background: rgba(0,0,0,0.9); padding: 25px 40px; border-radius: 16px;
+            border: 1px solid var(--accent-color); text-align: center;
+        }
+        .back-btn {
+            position: absolute; top: 30px; left: 30px; color: rgba(255,255,255,0.8);
+            z-index: 30; cursor: pointer; background: rgba(0,0,0,0.5); padding: 10px 20px;
+            border-radius: 30px; border: 1px solid rgba(255,255,255,0.2); font-weight: bold; font-family: sans-serif; transition: 0.3s;
+        }
+        
+        #sidebar { background-color: rgba(0,0,0,0.7) !important; backdrop-filter: blur(20px) !important; border-left: 1px solid rgba(255,255,255,0.1); }
+        [data-theme="light"] #sidebar { background-color: rgba(255,255,255,0.8) !important; border-left: 1px solid rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+
+    <div id="flash-overlay"></div>
+    <div id="loading">
+        <div style="font-size: 40px; margin-bottom: 10px;">✨</div>
+        LOADING ULTRA ENGINE...
+    </div>
+    <div class="back-btn" onclick="window.location.href='index.html'">← EXIT AR</div>
+
+    <div id="action-bar">
+        <button class="action-btn btn-gallery" onclick="window.location.href='gallery.html'">🖼️ Gallery</button>
+        <button class="action-btn btn-snap" onclick="capturePhoto()">📸 Snap</button>
+    </div>
+
+    <video id="webcam-bg" autoplay playsinline></video>
+    <canvas id="output-canvas"></canvas>
+
+    <div id="filter-container">
+        <div class="filter-btn" onclick="toggleFilter('iron', this)"><span>🤖</span><span class="label">IronHUD</span></div>
+        <div class="filter-btn" onclick="toggleFilter('thug', this)"><span>🕶️</span><span class="label">Thug</span></div>
+        <div class="filter-btn" onclick="toggleFilter('spider', this)"><span>🕷️</span><span class="label">Spider</span></div>
+        <div class="filter-btn" onclick="toggleFilter('matrix', this)"><span>👾</span><span class="label">Matrix</span></div>
+        <div class="filter-btn" onclick="toggleFilter('skull', this)"><span>💀</span><span class="label">Ghost</span></div>
+        
+        <div class="sep"></div>
+        
+        <div class="filter-btn" onclick="toggleFilter('queen', this)"><span>👑</span><span class="label">Queen</span></div>
+        <div class="filter-btn" onclick="toggleFilter('cat', this)"><span>😺</span><span class="label">Kitty</span></div>
+        <div class="filter-btn" onclick="toggleFilter('dog', this)"><span>🐶</span><span class="label">Doggy</span></div>
+        <div class="filter-btn" onclick="toggleFilter('love', this)"><span>💖</span><span class="label">Love</span></div>
+        <div class="filter-btn" onclick="toggleFilter('devil', this)"><span>😈</span><span class="label">Devil</span></div>
+    </div>
+
+    <script type="importmap">
+        { "imports": { "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/+esm" } }
+    </script>
+
+    <script src="main.js"></script>
+
+    <script>
+        function fixMenu() {
+            const sidebar = document.getElementById('sidebar');
+            if(!sidebar) { requestAnimationFrame(fixMenu); return; }
+            const forbidden = ['Analyzer', 'Close', 'DEV TOOLS'];
+            Array.from(sidebar.getElementsByTagName('button')).forEach(b => {
+                if (forbidden.some(f => b.innerText.includes(f))) b.style.display = 'none';
+            });
+            Array.from(sidebar.getElementsByTagName('h3')).forEach(h => {
+                if (forbidden.some(f => h.innerText.includes(f))) h.style.display = 'none';
+            });
+        }
+        fixMenu();
+
+        function capturePhoto() {
+            const flash = document.getElementById('flash-overlay');
+            flash.style.opacity = '1';
+            setTimeout(() => flash.style.opacity = '0', 200);
+
+            const video = document.getElementById('webcam-bg');
+            const canvas = document.getElementById('output-canvas');
+            const saveCanvas = document.createElement('canvas');
+            saveCanvas.width = video.videoWidth;
+            saveCanvas.height = video.videoHeight;
+            const ctx = saveCanvas.getContext('2d');
+
+            ctx.translate(saveCanvas.width, 0); ctx.scale(-1, 1);
+            ctx.drawImage(video, 0, 0, saveCanvas.width, saveCanvas.height);
+            ctx.drawImage(canvas, 0, 0, saveCanvas.width, saveCanvas.height);
+
+            const dataURL = saveCanvas.toDataURL('image/jpeg', 0.85);
+            saveToGallery(dataURL);
+        }
+
+        function saveToGallery(dataURL) {
+            try {
+                let photos = JSON.parse(localStorage.getItem('faceverse_gallery') || '[]');
+                photos.unshift({ date: new Date().toLocaleString(), img: dataURL });
+                localStorage.setItem('faceverse_gallery', JSON.stringify(photos));
+            } catch (e) { alert("Storage Full! Delete some photos."); }
+        }
+    </script>
+
+    <script type="module">
+        import { FilesetResolver, FaceLandmarker } from '@mediapipe/tasks-vision';
+
+        const video = document.getElementById('webcam-bg');
+        const canvas = document.getElementById('output-canvas');
+        const ctx = canvas.getContext('2d');
+        let faceLandmarker;
+        let activeFilter = null;
+        
+        // --- ANIMATION STATES ---
+        let particles = [];
+        let rainDrops = [];
+        let thugY = -300;
+        let thugVelocity = 0;
+        let spiderOffset = 0;
+
+        window.toggleFilter = function(name, btnElement) {
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            if (activeFilter === name) {
+                activeFilter = null;
+            } else {
+                activeFilter = name;
+                btnElement.classList.add('active');
+                particles = [];
+                rainDrops = [];
+                thugY = -300; thugVelocity = 0;
+                spiderOffset = 0;
+                
+                if(name === 'matrix') {
+                    for(let i=0; i<100; i++) {
+                        rainDrops.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, speed: Math.random()*10+5 });
+                    }
+                }
+            }
+        }
+
+        async function init() {
+            const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm");
+            faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+                baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`, delegate: "GPU" },
+                outputFaceLandmarks: true, 
+                outputFaceBlendshapes: true,
+                runningMode: "VIDEO", numFaces: 1
+            });
+
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
+            video.srcObject = stream;
+            video.addEventListener("loadeddata", () => {
+                document.getElementById('loading').style.display = 'none';
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                renderLoop();
+            });
+        }
+
+        function getPoint(landmark) {
+            return { x: landmark.x * canvas.width, y: landmark.y * canvas.height };
+        }
+
+        // --- HELPER: GRADIENTS & UTILS ---
+        function createGoldGradient(ctx, x, y, size, angle) {
+            // Mimics metallic reflection
+            const grad = ctx.createLinearGradient(x - size, y, x + size, y);
+            grad.addColorStop(0, '#BF953F');
+            grad.addColorStop(0.2, '#FCF6BA'); // Highlight
+            grad.addColorStop(0.4, '#B38728');
+            grad.addColorStop(0.6, '#FBF5B7'); // Highlight
+            grad.addColorStop(1, '#AA771C');
+            return grad;
+        }
+
+        function drawSpider(x, y, scale, time) {
+            ctx.fillStyle = "black";
+            ctx.beginPath(); ctx.arc(x, y, 10*scale, 0, Math.PI*2); ctx.fill(); 
+            ctx.fillStyle = "red"; 
+            ctx.beginPath(); ctx.arc(x, y, 4*scale, 0, Math.PI*2); ctx.fill(); 
+            
+            ctx.strokeStyle = "black"; ctx.lineWidth = 2*scale;
+            for(let i=0; i<4; i++) {
+                const legMove = Math.sin(time + i) * 5 * scale;
+                ctx.beginPath(); ctx.moveTo(x, y); 
+                ctx.quadraticCurveTo(x - 20*scale, y - 10*scale + (i*5*scale), x - 30*scale, y + 10*scale + legMove); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(x, y); 
+                ctx.quadraticCurveTo(x + 20*scale, y - 10*scale + (i*5*scale), x + 30*scale, y + 10*scale - legMove); ctx.stroke();
+            }
+        }
+
+        // ================= FILTERS =================
+
+        function drawIron(landmarks) {
+            const center = getPoint(landmarks[168]);
+            const time = Date.now() * 0.003;
+            ctx.strokeStyle = "rgba(0, 234, 255, 0.6)"; ctx.lineWidth = 2;
+            ctx.shadowBlur = 15; ctx.shadowColor = "cyan";
+            ctx.beginPath();
+            [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109].forEach((id, i) => {
+                const p = getPoint(landmarks[id]);
+                if(i===0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+            });
+            ctx.closePath(); ctx.stroke();
+            const scanY = center.y + Math.sin(time*2) * 120;
+            ctx.beginPath(); ctx.moveTo(center.x - 80, scanY); ctx.lineTo(center.x + 80, scanY);
+            ctx.lineWidth = 4; ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.stroke();
+            ctx.beginPath(); ctx.arc(center.x, center.y, 60, time, time+4); ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+
+        function drawThug(landmarks) {
+            const lEye = getPoint(landmarks[33]);
+            const rEye = getPoint(landmarks[263]);
+            const center = getPoint(landmarks[6]);
+            const width = Math.hypot(rEye.x - lEye.x, rEye.y - lEye.y) * 2.3;
+            const angle = Math.atan2(rEye.y - lEye.y, rEye.x - lEye.x);
+            if (thugY < 0) { thugVelocity += 2; thugY += thugVelocity; } else { if(thugVelocity > 2) { thugVelocity = -thugVelocity * 0.4; thugY += thugVelocity; } else thugY = 0; }
+            ctx.save();
+            ctx.translate(center.x, center.y + thugY);
+            ctx.rotate(angle);
+            ctx.fillStyle = "black";
+            const h = width * 0.2;
+            ctx.fillRect(-width/2, -h/2, width, h);
+            ctx.fillRect(-width/2, -h/2, h, h*1.6);
+            ctx.fillRect(width/2 - h, -h/2, h, h*1.6);
+            ctx.fillRect(-h, -h/2, h*2, h*0.2); 
+            ctx.fillStyle = "white";
+            for(let i=0; i<3; i++) {
+                ctx.fillRect(-width/2 + 10 + i*15, -h/2 + 5, 5, 5);
+                ctx.fillRect(width/2 - h + 10 + i*15, -h/2 + 5, 5, 5);
+            }
+            ctx.restore();
+        }
+
+        function drawSpiderFilter(landmarks) {
+            const time = Date.now() * 0.01;
+            spiderOffset += 1;
+            if(spiderOffset > canvas.height) spiderOffset = 0;
+            const hangY = (Math.sin(time) * 50) + 100;
+            ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(100, 0); ctx.lineTo(100, hangY); ctx.stroke();
+            drawSpider(100, hangY, 1.5, time);
+            ctx.beginPath(); ctx.moveTo(canvas.width-100, 0); ctx.lineTo(canvas.width-100, hangY + 50); ctx.stroke();
+            drawSpider(canvas.width-100, hangY + 50, 1.5, time + 2);
+            const lCheek = getPoint(landmarks[234]);
+            const rCheek = getPoint(landmarks[454]);
+            drawSpider(lCheek.x + Math.sin(time)*20, lCheek.y + Math.cos(time)*20, 0.8, time*2);
+            drawSpider(rCheek.x - Math.sin(time)*20, rCheek.y - Math.cos(time)*20, 0.8, time*2 + 1);
+        }
+
+        function drawMatrix(landmarks) {
+            ctx.fillStyle = "rgba(0, 0, 0, 0.1)"; 
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#0f0"; ctx.font = "15px monospace";
+            rainDrops.forEach(d => {
+                ctx.fillText(Math.random()>0.5?"1":"0", d.x, d.y);
+                d.y += d.speed;
+                if(d.y > canvas.height) d.y = 0;
+            });
+            ctx.strokeStyle = "#0f0"; ctx.lineWidth = 1; ctx.shadowColor = "#0f0"; ctx.shadowBlur = 10;
+            const points = [10, 152, 234, 454, 1, 33, 263];
+            ctx.beginPath();
+            points.forEach(idx => { const p = getPoint(landmarks[idx]); ctx.moveTo(p.x, p.y); ctx.arc(p.x, p.y, 2, 0, Math.PI*2); });
+            ctx.stroke(); ctx.shadowBlur = 0;
+        }
+
+        function drawSkull(landmarks) {
+            const grad = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 200, canvas.width/2, canvas.height/2, 800);
+            grad.addColorStop(0, "transparent"); grad.addColorStop(1, "black");
+            ctx.fillStyle = grad; ctx.fillRect(0,0,canvas.width, canvas.height);
+            const lEye = getPoint(landmarks[33]); const rEye = getPoint(landmarks[263]);
+            if(particles.length < 100) {
+                [lEye, rEye].forEach(pt => { particles.push({ x: pt.x, y: pt.y, vx: (Math.random()-0.5)*4, vy: -Math.random()*8, life: 1.0, color: `hsl(${Math.random()*40}, 100%, 50%)` }); });
+            }
+            particles.forEach((p, i) => {
+                ctx.globalCompositeOperation = 'screen';
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.life*10, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(255, ${p.life*150}, 0, ${p.life})`; ctx.fill();
+                p.x += p.vx; p.y += p.vy; p.life -= 0.04;
+                if(p.life <= 0) particles.splice(i, 1);
+            });
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.fillStyle = "rgba(20, 20, 20, 0.9)";
+            ctx.beginPath(); ctx.arc(lEye.x, lEye.y, 30, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(rEye.x, rEye.y, 30, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = "#fff"; ctx.lineWidth = 3;
+            const lips = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291];
+            ctx.beginPath();
+            lips.forEach(idx => { const p = getPoint(landmarks[idx]); ctx.moveTo(p.x, p.y-10); ctx.lineTo(p.x, p.y+10); });
+            ctx.stroke();
+        }
+
+        // --- FIXED AND ENHANCED REALISTIC FILTERS ---
+
+        // 6. QUEEN (Realistic Gold & Diamond)
+        function drawQueen(landmarks) {
+            const fore = getPoint(landmarks[10]);
+            const lTemp = getPoint(landmarks[103]);
+            const rTemp = getPoint(landmarks[332]);
+            const w = Math.hypot(rTemp.x - lTemp.x, rTemp.y - lTemp.y) * 1.8;
+            const angle = Math.atan2(rTemp.y - lTemp.y, rTemp.x - lTemp.x);
+
+            ctx.save();
+            ctx.translate(fore.x, fore.y - w*0.5);
+            ctx.rotate(angle);
+
+            // Realistic Gold Gradient
+            ctx.fillStyle = createGoldGradient(ctx, 0, 0, w, angle);
+            ctx.shadowColor = "#FFD700"; ctx.shadowBlur = 20;
+
+            // Crown Shape
+            ctx.beginPath();
+            ctx.moveTo(-w/2, w/3);
+            ctx.lineTo(-w/2, 0); // L Base
+            ctx.lineTo(-w/3, -w*0.3); // L Spike
+            ctx.lineTo(-w/6, 0); 
+            ctx.lineTo(0, -w*0.5); // Center Spike
+            ctx.lineTo(w/6, 0);
+            ctx.lineTo(w/3, -w*0.3); // R Spike
+            ctx.lineTo(w/2, 0); // R Base
+            ctx.lineTo(w/2, w/3);
+            ctx.closePath();
+            ctx.fill();
+
+            // Big Diamond in Center
+            ctx.shadowBlur = 30; ctx.shadowColor = "cyan";
+            ctx.fillStyle = "rgba(200, 255, 255, 0.9)";
+            ctx.beginPath(); ctx.arc(0, -w*0.1, w*0.08, 0, Math.PI*2); ctx.fill();
+            
+            // Shine effect on diamond
+            ctx.strokeStyle = "white"; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(-5, -w*0.1-5); ctx.lineTo(5, -w*0.1+5); ctx.stroke();
+            
+            ctx.restore();
+
+            // Glitter Particles
+            if(Math.random()>0.7) {
+                particles.push({
+                    x: fore.x + (Math.random()-0.5)*w*2, y: fore.y - w,
+                    life: 1, size: Math.random()*4
+                });
+            }
+            ctx.shadowBlur = 5; ctx.shadowColor = "white";
+            particles.forEach((p, i) => {
+                ctx.fillStyle = `rgba(255,255,255,${p.life})`;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+                p.life -= 0.05; if(p.life<=0) particles.splice(i,1);
+            });
+            ctx.shadowBlur = 0;
+        }
+
+        // 7. KITTY (Realistic Soft Ears + Vignette)
+        function drawCat(landmarks) {
+            // Soft Pink Vignette
+            const grad = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 300, canvas.width/2, canvas.height/2, 800);
+            grad.addColorStop(0, "transparent"); grad.addColorStop(1, "rgba(255, 182, 193, 0.3)");
+            ctx.fillStyle = grad; ctx.fillRect(0,0,canvas.width, canvas.height);
+
+            const fore = getPoint(landmarks[10]);
+            const w = Math.hypot(getPoint(landmarks[234]).x - getPoint(landmarks[454]).x, getPoint(landmarks[234]).y - getPoint(landmarks[454]).y);
+            const nose = getPoint(landmarks[1]);
+
+            // Ears (Curved, not triangles)
+            ctx.fillStyle = "#202020";
+            ctx.strokeStyle = "#444"; ctx.lineWidth = 2;
+            
+            // Left Ear
+            ctx.beginPath(); 
+            ctx.moveTo(fore.x - w*0.2, fore.y);
+            ctx.quadraticCurveTo(fore.x - w*0.6, fore.y - w*0.8, fore.x - w*0.5, fore.y);
+            ctx.fill(); ctx.stroke();
+            // Inner Pink
+            ctx.fillStyle = "#ffb6c1";
+            ctx.beginPath();
+            ctx.moveTo(fore.x - w*0.25, fore.y - 10);
+            ctx.quadraticCurveTo(fore.x - w*0.5, fore.y - w*0.6, fore.x - w*0.45, fore.y - 10);
+            ctx.fill();
+
+            // Right Ear
+            ctx.fillStyle = "#202020";
+            ctx.beginPath(); 
+            ctx.moveTo(fore.x + w*0.2, fore.y);
+            ctx.quadraticCurveTo(fore.x + w*0.6, fore.y - w*0.8, fore.x + w*0.5, fore.y);
+            ctx.fill(); ctx.stroke();
+            // Inner Pink
+            ctx.fillStyle = "#ffb6c1";
+            ctx.beginPath();
+            ctx.moveTo(fore.x + w*0.25, fore.y - 10);
+            ctx.quadraticCurveTo(fore.x + w*0.5, fore.y - w*0.6, fore.x + w*0.45, fore.y - 10);
+            ctx.fill();
+
+            // Cute Nose
+            ctx.fillStyle = "#333";
+            ctx.beginPath(); ctx.ellipse(nose.x, nose.y, 18, 12, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "white"; // Shine
+            ctx.beginPath(); ctx.arc(nose.x - 5, nose.y - 3, 4, 0, Math.PI*2); ctx.fill();
+
+            // Whiskers (Fading out)
+            ctx.lineWidth = 2;
+            const gradW = ctx.createLinearGradient(nose.x, nose.y, nose.x - 150, nose.y);
+            gradW.addColorStop(0, "white"); gradW.addColorStop(1, "transparent");
+            ctx.strokeStyle = gradW;
+            
+            ctx.beginPath(); ctx.moveTo(nose.x - 20, nose.y); ctx.lineTo(nose.x - 150, nose.y - 20); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(nose.x - 20, nose.y+10); ctx.lineTo(nose.x - 140, nose.y + 30); ctx.stroke();
+            
+            const gradW2 = ctx.createLinearGradient(nose.x, nose.y, nose.x + 150, nose.y);
+            gradW2.addColorStop(0, "white"); gradW2.addColorStop(1, "transparent");
+            ctx.strokeStyle = gradW2;
+            ctx.beginPath(); ctx.moveTo(nose.x + 20, nose.y); ctx.lineTo(nose.x + 150, nose.y - 20); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(nose.x + 20, nose.y+10); ctx.lineTo(nose.x + 140, nose.y + 30); ctx.stroke();
+        }
+
+        // 8. DOGGY (Floppy Ears + TONGUE)
+        function drawDog(landmarks, blendshapes) {
+            const fore = getPoint(landmarks[10]);
+            const lEarBase = getPoint(landmarks[127]);
+            const rEarBase = getPoint(landmarks[356]);
+            const w = Math.hypot(rEarBase.x - lEarBase.x, rEarBase.y - lEarBase.y);
+            const nose = getPoint(landmarks[1]);
+            const chin = getPoint(landmarks[152]);
+
+            // Physics Sway
+            const sway = (nose.x - canvas.width/2) * 0.15;
+
+            // Fur Texture Color
+            const furColor = "#8B4513"; // SaddleBrown
+            const innerColor = "#5D4037"; 
+
+            // Left Ear (Floppy)
+            ctx.fillStyle = furColor;
+            ctx.strokeStyle = "#3e2723"; ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(lEarBase.x, lEarBase.y - 30);
+            // Bezier for floppy look
+            ctx.bezierCurveTo(lEarBase.x - w + sway, lEarBase.y, lEarBase.x - w*0.5 + sway, lEarBase.y + w, lEarBase.x + 20, lEarBase.y + 20);
+            ctx.fill(); ctx.stroke();
+
+            // Right Ear
+            ctx.beginPath();
+            ctx.moveTo(rEarBase.x, rEarBase.y - 30);
+            ctx.bezierCurveTo(rEarBase.x + w + sway, rEarBase.y, rEarBase.x + w*0.5 + sway, rEarBase.y + w, rEarBase.x - 20, rEarBase.y + 20);
+            ctx.fill(); ctx.stroke();
+
+            // Dog Nose
+            ctx.fillStyle = "#1a1a1a";
+            ctx.beginPath(); ctx.ellipse(nose.x, nose.y, w*0.35, w*0.25, 0, 0, Math.PI*2); ctx.fill();
+            // Nostrils
+            ctx.fillStyle = "black";
+            ctx.beginPath(); ctx.arc(nose.x - 10, nose.y + 5, 6, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(nose.x + 10, nose.y + 5, 6, 0, Math.PI*2); ctx.fill();
+
+            // TONGUE ANIMATION (Check Mouth Open)
+            const openScore = blendshapes.categories.find(c => c.categoryName === 'jawOpen').score;
+            if (openScore > 0.15) {
+                const tongueLen = openScore * 120;
+                ctx.fillStyle = "#FF6B6B";
+                ctx.strokeStyle = "#D32F2F"; ctx.lineWidth = 1;
+                
+                ctx.beginPath();
+                ctx.moveTo(chin.x - 25, chin.y - 20);
+                ctx.bezierCurveTo(chin.x - 30, chin.y + tongueLen, chin.x + 30, chin.y + tongueLen, chin.x + 25, chin.y - 20);
+                ctx.fill(); ctx.stroke();
+                
+                // Center line
+                ctx.beginPath(); ctx.moveTo(chin.x, chin.y - 10); ctx.lineTo(chin.x, chin.y + tongueLen - 10);
+                ctx.strokeStyle = "rgba(0,0,0,0.2)"; ctx.stroke();
+            }
+        }
+
+        // 9. LOVE (Hearts & Vignette)
+        function drawLove(landmarks) {
+            const grad = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 200, canvas.width/2, canvas.height/2, 800);
+            grad.addColorStop(0, "transparent"); grad.addColorStop(1, "rgba(255, 100, 100, 0.3)");
+            ctx.fillStyle = grad; ctx.fillRect(0,0,canvas.width, canvas.height);
+
+            const lCheek = getPoint(landmarks[117]);
+            const rCheek = getPoint(landmarks[346]);
+            
+            ctx.fillStyle = "rgba(255, 50, 50, 0.4)"; ctx.shadowBlur = 20; ctx.shadowColor = "red";
+            ctx.beginPath(); ctx.arc(lCheek.x, lCheek.y, 30, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(rCheek.x, rCheek.y, 30, 0, Math.PI*2); ctx.fill();
+            
+            if(Math.random() > 0.9) particles.push({x: getPoint(landmarks[1]).x, y: getPoint(landmarks[1]).y, vy: 2, life: 1});
+            
+            ctx.shadowBlur = 0; ctx.font = "30px serif";
+            particles.forEach((p, i) => {
+                ctx.globalAlpha = p.life;
+                ctx.fillText("❤️", p.x + Math.sin(p.y*0.1)*20, p.y);
+                p.y -= p.vy; p.life -= 0.01;
+                if(p.life <= 0) particles.splice(i, 1);
+            });
+            ctx.globalAlpha = 1;
+        }
+
+        // 10. DEVIL (Scary Atmosphere)
+        function drawDevil(landmarks) {
+            const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            grad.addColorStop(0, "rgba(50, 0, 0, 0.5)"); grad.addColorStop(1, "rgba(0, 0, 0, 0.8)");
+            ctx.fillStyle = grad; ctx.fillRect(0,0,canvas.width, canvas.height);
+
+            const fore = getPoint(landmarks[10]);
+            
+            ctx.fillStyle = "#b30000";
+            ctx.shadowBlur = 30; ctx.shadowColor = "red";
+            
+            ctx.beginPath();
+            ctx.moveTo(fore.x - 30, fore.y); 
+            ctx.quadraticCurveTo(fore.x - 100, fore.y - 80, fore.x - 20, fore.y - 150); 
+            ctx.quadraticCurveTo(fore.x - 10, fore.y - 60, fore.x - 10, fore.y);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(fore.x + 30, fore.y); 
+            ctx.quadraticCurveTo(fore.x + 100, fore.y - 80, fore.x + 20, fore.y - 150); 
+            ctx.quadraticCurveTo(fore.x + 10, fore.y - 60, fore.x + 10, fore.y);
+            ctx.fill();
+            
+            ctx.shadowBlur = 0;
+        }
+
+        function renderLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (faceLandmarker && video.currentTime > 0) {
+                const results = faceLandmarker.detectForVideo(video, performance.now());
+                if (results.faceLandmarks && results.faceLandmarks.length > 0) {
+                    const lm = results.faceLandmarks[0];
+                    const bs = results.faceBlendshapes[0]; // Needed for Dog/Iron
+
+                    if (activeFilter === 'iron') drawIron(lm);
+                    else if (activeFilter === 'thug') drawThug(lm);
+                    else if (activeFilter === 'spider') drawSpiderFilter(lm);
+                    else if (activeFilter === 'matrix') drawMatrix(lm);
+                    else if (activeFilter === 'skull') drawSkull(lm);
+                    
+                    else if (activeFilter === 'queen') drawQueen(lm);
+                    else if (activeFilter === 'cat') drawCat(lm);
+                    else if (activeFilter === 'dog') drawDog(lm, bs);
+                    else if (activeFilter === 'love') drawLove(lm);
+                    else if (activeFilter === 'devil') drawDevil(lm);
+                }
+            }
+            requestAnimationFrame(renderLoop);
+        }
+
+        init();
+    </script>
+</body>
+</html>

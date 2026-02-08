@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FaceVerse Gallery</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎭</text></svg>">
+    
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;700&display=swap" rel="stylesheet">
+    <style>
+        /* --- VARIABLES --- */
+        :root {
+            --gal-bg: #050505;
+            --gal-text: #fff;
+            --card-bg: rgba(255,255,255,0.08);
+            --card-border: rgba(255,255,255,0.15);
+            --accent: #00ffcc;
+        }
+
+        [data-theme="light"] {
+            --gal-bg: #f4f4f9;
+            --gal-text: #1a1a1a;
+            --card-bg: rgba(255,255,255,0.6);
+            --card-border: rgba(0,0,0,0.1);
+            --accent: #00b894;
+        }
+
+        body {
+            background-color: var(--gal-bg);
+            color: var(--gal-text);
+            font-family: 'Outfit', sans-serif;
+            text-align: center;
+            padding: 20px;
+            overflow-x: hidden;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        #bg-canvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1; pointer-events: none; 
+        }
+        
+        h1 { 
+            margin-top: 20px;
+            margin-bottom: 10px; 
+            font-size: 3rem; 
+            letter-spacing: 2px;
+            background: linear-gradient(to right, #fff, var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            position: relative; z-index: 10;
+            text-shadow: 0 0 20px rgba(0, 255, 204, 0.3);
+        }
+        
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 25px;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            position: relative; z-index: 10;
+        }
+
+        .gallery-item {
+            background: var(--card-bg);
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            border: 1px solid var(--card-border);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+        }
+        
+        .gallery-item:hover { 
+            transform: translateY(-8px) scale(1.02); 
+            border-color: var(--accent); 
+            box-shadow: 0 10px 30px rgba(0, 255, 204, 0.3);
+        }
+
+        .gallery-item img {
+            width: 100%;
+            height: 180px; 
+            object-fit: cover;
+            display: block;
+            cursor: pointer;
+            background: #000;
+        }
+
+        .info-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            background: rgba(0,0,0,0.2);
+            border-top: 1px solid var(--card-border);
+        }
+
+        .timestamp {
+            font-size: 0.75rem;
+            color: var(--gal-text);
+            opacity: 0.8;
+            font-weight: 500;
+        }
+
+        .delete-btn {
+            background: rgba(255, 0, 85, 0.1);
+            border: 1px solid transparent;
+            color: #ff0055;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: 0.2s;
+            width: 30px; height: 30px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .delete-btn:hover {
+            background: #ff0055;
+            color: white;
+            transform: scale(1.1);
+            box-shadow: 0 0 10px #ff0055;
+        }
+
+        .btn-container { margin: 30px 0; display: flex; gap: 20px; justify-content: center; position: relative; z-index: 10; }
+
+        button.control-btn {
+            padding: 12px 30px;
+            border-radius: 30px;
+            border: 1px solid var(--card-border);
+            cursor: pointer;
+            font-weight: bold;
+            font-family: inherit;
+            transition: 0.2s;
+            font-size: 1rem;
+            backdrop-filter: blur(5px);
+        }
+
+        .btn-back { background: var(--card-bg); color: var(--gal-text); }
+        .btn-back:hover { background: var(--accent); color: #000; border-color: var(--accent); }
+
+        .btn-clear { background: rgba(255, 0, 85, 0.1); color: #ff0055; border-color: #ff0055; }
+        .btn-clear:hover { background: #ff0055; color: white; }
+
+        .empty-msg { margin-top: 50px; color: var(--gal-text); opacity: 0.6; font-size: 1.2rem; }
+
+        .menu-toggle {
+            position: fixed;
+            top: 20px; right: 20px;
+            z-index: 100;
+            background: var(--card-bg) !important;
+            border: 1px solid var(--card-border) !important;
+            color: var(--gal-text) !important;
+            width: 40px; height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+        }
+
+        #sidebar {
+            background-color: rgba(0, 0, 0, 0.4) !important; 
+            backdrop-filter: blur(20px) !important; 
+            border-left: 1px solid rgba(255,255,255,0.1);
+            box-shadow: -10px 0 30px rgba(0,0,0,0.5);
+        }
+
+        [data-theme="light"] #sidebar {
+            background-color: rgba(255, 255, 255, 0.5) !important; 
+            backdrop-filter: blur(20px) !important;
+            border-left: 1px solid rgba(0,0,0,0.1);
+            box-shadow: -10px 0 30px rgba(0,0,0,0.1);
+        }
+        
+        [data-theme="light"] #sidebar button, 
+        [data-theme="light"] #sidebar h3 {
+            color: #000 !important;
+            border-color: #000 !important;
+        }
+
+        /* POPUP MODAL */
+        #confirm-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            z-index: 2000;
+            display: flex; justify-content: center; align-items: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.2s;
+            backdrop-filter: blur(8px);
+        }
+        
+        #confirm-modal.active { opacity: 1; pointer-events: auto; }
+
+        .modal-box {
+            background: #111;
+            border: 1px solid var(--accent);
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 0 40px rgba(0, 255, 204, 0.2);
+            max-width: 300px;
+            color: white;
+            animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        
+        @keyframes popUp {
+            from { transform: scale(0.8); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .modal-box h3 { margin-top: 0; font-size: 1.5rem; color: var(--accent); }
+        .modal-box p { font-size: 1rem; opacity: 0.8; margin-bottom: 25px; }
+
+        .modal-actions { display: flex; gap: 15px; justify-content: center; }
+        
+        .modal-btn { padding: 10px 25px; border-radius: 25px; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-no { background: #333; color: white; }
+        .btn-no:hover { background: #555; }
+        .btn-yes { background: #ff0055; color: white; }
+        .btn-yes:hover { background: #d00045; box-shadow: 0 0 15px #ff0055; }
+
+    </style>
+</head>
+<body>
+
+    <canvas id="bg-canvas"></canvas>
+
+    <button class="menu-toggle" onclick="toggleMenu()">⋮</button>
+
+    <div id="confirm-modal">
+        <div class="modal-box">
+            <h3 id="modal-title">Delete?</h3>
+            <p id="modal-desc">Are you sure you want to delete this photo?</p>
+            <div class="modal-actions">
+                <button class="modal-btn btn-no" onclick="closeModal()">Cancel</button>
+                <button class="modal-btn btn-yes" id="confirm-btn">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <h1>SNAPSHOTS</h1>
+    
+    <div class="btn-container">
+        <button class="control-btn btn-back" onclick="window.location.href='filters.html'">← BACK TO CAM</button>
+        <button class="control-btn btn-clear" onclick="askClearAll()">🗑️ CLEAR ALL</button>
+    </div>
+
+    <div id="grid" class="gallery-grid"></div>
+    <div id="empty" class="empty-msg" style="display:none">No photos yet. Go take some! 📸</div>
+
+    <script src="main.js"></script>
+
+    <script>
+        function cleanMenu() {
+            const sidebar = document.getElementById('sidebar');
+            if(!sidebar) { requestAnimationFrame(cleanMenu); return; }
+            
+            const forbidden = ['Analyzer', 'DEV TOOLS', 'Close', 'Restart', 'Pause'];
+            Array.from(sidebar.getElementsByTagName('button')).forEach(b => {
+                if (forbidden.some(f => b.innerText.includes(f))) b.style.display = 'none';
+            });
+            Array.from(sidebar.getElementsByTagName('h3')).forEach(h => {
+                if (forbidden.some(f => h.innerText.includes(f))) h.style.display = 'none';
+            });
+        }
+        cleanMenu();
+
+        function loadGallery() {
+            const grid = document.getElementById('grid');
+            const empty = document.getElementById('empty');
+            const photos = JSON.parse(localStorage.getItem('faceverse_gallery') || '[]');
+
+            grid.innerHTML = '';
+
+            if (photos.length === 0) {
+                empty.style.display = 'block';
+                return;
+            } else {
+                empty.style.display = 'none';
+            }
+
+            // Loop through REAL photos only
+            photos.forEach((photo, index) => {
+                const div = document.createElement('div');
+                div.className = 'gallery-item';
+                div.innerHTML = `
+                    <img src="${photo.img}" onclick="downloadImage('${photo.img}')" title="Click to Download">
+                    <div class="info-bar">
+                        <span class="timestamp">${photo.date}</span>
+                        <button class="delete-btn" onclick="askDeleteIndividual(${index})" title="Delete Photo">🗑️</button>
+                    </div>
+                `;
+                grid.appendChild(div);
+            });
+        }
+
+        function downloadImage(src) {
+            const a = document.createElement('a');
+            a.href = src;
+            a.download = `faceverse_${Date.now()}.jpg`;
+            a.click();
+        }
+
+        function openModal(title, desc, action) {
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-desc').innerText = desc;
+            document.getElementById('confirm-modal').classList.add('active');
+            
+            const confirmBtn = document.getElementById('confirm-btn');
+            const newBtn = confirmBtn.cloneNode(true);
+            confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
+            
+            newBtn.addEventListener('click', () => {
+                action();
+                closeModal();
+            });
+        }
+
+        function closeModal() {
+            document.getElementById('confirm-modal').classList.remove('active');
+        }
+
+        function askDeleteIndividual(index) {
+            openModal('Delete Photo?', 'This action cannot be undone.', () => {
+                let photos = JSON.parse(localStorage.getItem('faceverse_gallery') || '[]');
+                photos.splice(index, 1);
+                localStorage.setItem('faceverse_gallery', JSON.stringify(photos));
+                loadGallery();
+            });
+        }
+
+        function askClearAll() {
+            openModal('Clear Gallery?', 'This will delete ALL photos permanently.', () => {
+                localStorage.removeItem('faceverse_gallery');
+                loadGallery();
+            });
+        }
+
+        // --- BACKGROUND ANIMATION ---
+        const canvas = document.getElementById('bg-canvas');
+        const ctx = canvas.getContext('2d');
+        let w, h;
+
+        const emojis = ['📸', '🖼️', '🤳', '✨', '🎥', '🎞️', '💾', '📱'];
+        const particles = [];
+
+        function resize() {
+            w = canvas.width = window.innerWidth;
+            h = canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        class Particle {
+            constructor() { this.reset(); }
+            reset() {
+                this.x = Math.random() * w;
+                this.y = Math.random() * h;
+                this.size = Math.random() * 30 + 15; 
+                this.emoji = emojis[Math.floor(Math.random() * emojis.length)];
+                this.speedX = (Math.random() - 0.5) * 0.5;
+                this.speedY = (Math.random() - 0.5) * 0.5;
+                this.opacity = Math.random() * 0.6 + 0.3; 
+            }
+            update() {
+                this.x += this.speedX; this.y += this.speedY;
+                if(this.x > w+50) this.x = -50; if(this.x < -50) this.x = w+50;
+                if(this.y > h+50) this.y = -50; if(this.y < -50) this.y = h+50;
+            }
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.globalAlpha = this.opacity;
+                ctx.font = `${this.size}px serif`;
+                const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+                ctx.fillStyle = isLight ? '#000' : '#fff';
+                ctx.fillText(this.emoji, 0, 0);
+                ctx.restore();
+            }
+        }
+
+        function initParticles() {
+            particles.length = 0;
+            for(let i=0; i<25; i++) particles.push(new Particle());
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, w, h);
+            particles.forEach(p => { p.update(); p.draw(); });
+            requestAnimationFrame(animate);
+        }
+
+        initParticles();
+        animate();
+        loadGallery();
+    </script>
+</body>
+</html>

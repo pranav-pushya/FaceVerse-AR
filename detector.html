@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FaceVerse Detector</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎭</text></svg>">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* FORCE BLACK & NO SCROLL */
+        body { background: #000 !important; overflow: hidden; }
+
+        /* HUD LAYOUT */
+        #hud-layer {
+            position: absolute;
+            top: 20px; left: 20px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        #webcam-frame {
+            width: 240px; height: 180px;
+            border: 2px solid var(--accent-color);
+            position: relative;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 0 25px rgba(0, 255, 204, 0.15);
+        }
+
+        video { 
+            width: 100%; height: 100%; 
+            object-fit: cover; transform: scaleX(-1); 
+            opacity: 0.8; 
+        }
+
+        /* STATUS DISPLAY */
+        #emotion-readout { margin-top: 25px; font-family: 'Segoe UI', sans-serif; }
+        .sub-text { opacity: 0.7; font-size: 0.9rem; letter-spacing: 3px; color: var(--accent-color); margin-bottom: 5px; font-weight: 600; }
+        h1 { 
+            font-size: 3.5rem; margin: 0; text-transform: uppercase; font-weight: 900;
+            color: #fff; text-shadow: 0 0 20px rgba(0,0,0,0.8); line-height: 1; transition: color 0.2s ease;
+        }
+
+        /* CONFIDENCE BAR */
+        #confidence-wrapper { width: 240px; height: 6px; background: #222; margin-top: 15px; border-radius: 3px; overflow: hidden; }
+        #confidence-fill { height: 100%; width: 0%; background: var(--accent-color); transition: width 0.1s linear, background 0.2s; }
+
+        /* CALIBRATION OVERLAY */
+        #calib-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); z-index: 5000; /* Highest Z */
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+        }
+        #calib-text { color: #00ffcc; font-family: monospace; font-size: 1.5rem; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        /* GUIDE MODAL (Z-Index 2000) */
+        #guide-modal {
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 85%; max-width: 600px; height: 75vh; background: rgba(10, 12, 16, 0.95);
+            border: 1px solid var(--accent-color); border-radius: 20px; 
+            z-index: 2000; /* Lower than Sidebar */
+            box-shadow: 0 0 60px rgba(0,0,0,0.9); color: white; backdrop-filter: blur(15px);
+            overflow-y: auto; scrollbar-width: none;
+        }
+        #guide-modal::-webkit-scrollbar { width: 0px; }
+        
+        .modal-header { padding: 20px; border-bottom: 2px solid #333; cursor: move; background: rgba(255,255,255,0.05); border-top-left-radius: 20px; border-top-right-radius: 20px; position: sticky; top: 0; z-index: 10; }
+        .modal-header h2 { margin: 0; color: var(--accent-color); text-align: center; font-size: 1.4rem; pointer-events: none; }
+        .modal-content { padding: 30px; }
+        .guide-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .guide-card { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; display: flex; align-items: center; gap: 15px; border: 1px solid transparent; }
+        .guide-card:hover { border-color: rgba(255,255,255,0.2); }
+        .guide-emoji { font-size: 2.2rem; min-width: 50px; text-align: center; }
+        .guide-text h4 { margin: 0; font-size: 1rem; color: #fff; font-weight: 700; }
+        .guide-text p { margin: 3px 0 0; font-size: 0.8rem; opacity: 0.6; }
+        .close-modal { background: var(--accent-color); color: #000; border: none; width: 100%; padding: 18px; font-weight: 800; cursor: pointer; position: sticky; bottom: 0; left: 0; }
+
+        #back-btn { position: absolute; bottom: 30px; left: 30px; color: rgba(255,255,255,0.6); z-index: 20; cursor: pointer; border: 1px solid rgba(255,255,255,0.2); padding: 10px 25px; border-radius: 30px; transition: 0.3s; }
+        #back-btn:hover { background: white; color: black; }
+        
+        /* SIDEBAR OVERRIDE (Higher than Modal) */
+        .sidebar { z-index: 3000 !important; }
+        .cheat-btn { border-color: #ffd700 !important; color: #ffd700 !important; margin-top: 10px; }
+        
+        #debug-values { position: absolute; bottom: 10px; right: 10px; font-family: monospace; font-size: 11px; color: #0f0; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 5px; pointer-events: none; display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="calib-overlay">
+        <div id="calib-text">CALIBRATING NEURAL ID...</div>
+        <p style="color:#aaa; margin-top:10px;">Relax face. Look at camera.</p>
+    </div>
+
+    <div id="hud-layer">
+        <div id="webcam-frame">
+            <video id="webcam" autoplay playsinline></video>
+        </div>
+        <div id="emotion-readout">
+            <div class="sub-text">LIVE STATUS</div>
+            <h1 id="status-text">WAIT...</h1>
+            <div id="confidence-wrapper"><div id="confidence-fill"></div></div>
+        </div>
+    </div>
+
+    <div id="debug-values">Debug Active</div>
+    <div id="back-btn" onclick="window.location.href='index.html'">← BACK</div>
+
+    <div id="guide-modal">
+        <div class="modal-header" id="modal-drag-zone"><h2>EXPRESSION GUIDE</h2></div>
+        <div class="modal-content">
+            <div class="guide-grid">
+                <div class="guide-card"><div class="guide-emoji">😁</div><div class="guide-text"><h4>HAPPY</h4><p>Smile naturally</p></div></div>
+                <div class="guide-card"><div class="guide-emoji">😔</div><div class="guide-text"><h4>SAD</h4><p>Frown / Pout / Press lips</p></div></div>
+                <div class="guide-card"><div class="guide-emoji">😡</div><div class="guide-text"><h4>ANGRY</h4><p>Brows down + No smile</p></div></div>
+                <div class="guide-card"><div class="guide-emoji">😱</div><div class="guide-text"><h4>SCREAM</h4><p>Mouth WIDE open</p></div></div>
+                <div class="guide-card"><div class="guide-emoji">😬</div><div class="guide-text"><h4>CRINGE</h4><p>Show teeth + Scrunch nose</p></div></div>
+                <div class="guide-card"><div class="guide-emoji">😉</div><div class="guide-text"><h4>WINK</h4><p>Close ONE eye</p></div></div>
+                <div class="guide-card"><div class="guide-emoji">🐡</div><div class="guide-text"><h4>PUFF</h4><p>Fill cheeks with air</p></div></div>
+                <div class="guide-card"><div class="guide-emoji">🙄</div><div class="guide-text"><h4>ROLL EYES</h4><p>Look UP at ceiling</p></div></div>
+                <div class="guide-card"><div class="guide-emoji">😲</div><div class="guide-text"><h4>SURPRISED</h4><p>Mouth open OR Brows up</p></div></div>
+                <div class="guide-card"><div class="guide-emoji">😏</div><div class="guide-text"><h4>SMIRK</h4><p>One-sided smile</p></div></div>
+                <div class="guide-card"><div class="guide-emoji">😚</div><div class="guide-text"><h4>KISS</h4><p>Pucker lips</p></div></div>
+            </div>
+        </div>
+        <button class="close-modal" onclick="toggleGuide()">CLOSE</button>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/+esm"
+            }
+        }
+    </script>
+    
+    <script src="main.js"></script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { FilesetResolver, FaceLandmarker } from '@mediapipe/tasks-vision';
+
+        // --- CALIBRATION VARIABLES ---
+        let isCalibrated = false;
+        let calibrationFrames = 0;
+        const CALIBRATION_LIMIT = 50; 
+        let neutralBaseline = {}; 
+
+        // --- 3D SETUP ---
+        let scene, camera, renderer, sphereMesh;
+        let faceLandmarker, video;
+        let lastScores = {}; 
+        const SMOOTHING_FACTOR = 0.5; // Lower = Faster response
+        let targetColor = new THREE.Color(0xffffff);
+        let targetScale = 1.0;
+
+        const EMOTIONS = {
+            "Neutral":   { color: 0xffffff, scale: 1.0 },
+            "Happy":     { color: 0xffff00, scale: 1.3 }, 
+            "Sad":       { color: 0x0055ff, scale: 0.8 }, 
+            "Angry":     { color: 0xff0000, scale: 1.2 }, 
+            "Surprised": { color: 0xff00ff, scale: 1.4 },
+            "Wink":      { color: 0x00ffcc, scale: 1.1 }, 
+            "Kiss":      { color: 0xff69b4, scale: 0.9 }, 
+            "Puff":      { color: 0xffa500, scale: 1.6 }, 
+            "Scream":    { color: 0xffffff, scale: 1.9 }, 
+            "Roll Eyes": { color: 0xaaaaaa, scale: 1.0 }, 
+            "Smirk":     { color: 0x800080, scale: 1.1 },
+            "Cringe":    { color: 0x00ff00, scale: 0.9 }
+        };
+
+        // --- INIT ---
+        async function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+            camera.position.z = 5;
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            const geometry = new THREE.IcosahedronGeometry(1.8, 1); 
+            const material = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.4 });
+            sphereMesh = new THREE.Mesh(geometry, material);
+            scene.add(sphereMesh);
+            scene.add(new THREE.DirectionalLight(0xffffff, 2));
+
+            const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm");
+            faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+                baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`, delegate: "GPU" },
+                outputFaceBlendshapes: true, runningMode: "VIDEO", numFaces: 1
+            });
+
+            video = document.getElementById('webcam');
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+            video.addEventListener("loadeddata", animate);
+            
+            window.addEventListener('keydown', (e) => {
+                if(e.key === 'd') {
+                    const dbg = document.getElementById('debug-values');
+                    dbg.style.display = dbg.style.display === 'block' ? 'none' : 'block';
+                }
+            });
+        }
+
+        const getRaw = (blendshapes, name) => blendshapes.find(b => b.categoryName === name)?.score || 0;
+
+        function analyze(blendshapes) {
+            
+            // 1. EXTRACT RAW VALUES
+            const raw = {
+                smile: (getRaw(blendshapes, 'mouthSmileLeft') + getRaw(blendshapes, 'mouthSmileRight')) / 2,
+                browDown: (getRaw(blendshapes, 'browDownLeft') + getRaw(blendshapes, 'browDownRight')) / 2,
+                browUp: (getRaw(blendshapes, 'browOuterUpLeft') + getRaw(blendshapes, 'browOuterUpRight')) / 2,
+                browInner: getRaw(blendshapes, 'browInnerUp'),
+                open: getRaw(blendshapes, 'jawOpen'),
+                frown: (getRaw(blendshapes, 'mouthFrownLeft') + getRaw(blendshapes, 'mouthFrownRight')) / 2,
+                pucker: getRaw(blendshapes, 'mouthPucker'),
+                press: (getRaw(blendshapes, 'mouthPressLeft') + getRaw(blendshapes, 'mouthPressRight')) / 2,
+                puff: getRaw(blendshapes, 'cheekPuff'),
+                blinkL: getRaw(blendshapes, 'eyeBlinkLeft'),
+                blinkR: getRaw(blendshapes, 'eyeBlinkRight'),
+                lookUp: (getRaw(blendshapes, 'eyeLookUpLeft') + getRaw(blendshapes, 'eyeLookUpRight')) / 2,
+                sneer: (getRaw(blendshapes, 'noseSneerLeft') + getRaw(blendshapes, 'noseSneerRight')) / 2,
+                mouthL: getRaw(blendshapes, 'mouthSmileLeft'),
+                mouthR: getRaw(blendshapes, 'mouthSmileRight'),
+                mouthShrug: (getRaw(blendshapes, 'mouthStretchLeft') + getRaw(blendshapes, 'mouthStretchRight')) / 2
+            };
+
+            // 2. CALIBRATION
+            if (!isCalibrated) {
+                if (calibrationFrames < CALIBRATION_LIMIT) {
+                    for (const key in raw) {
+                        if (!neutralBaseline[key]) neutralBaseline[key] = 0;
+                        neutralBaseline[key] += raw[key];
+                    }
+                    calibrationFrames++;
+                    return;
+                } else {
+                    for (const key in neutralBaseline) neutralBaseline[key] /= CALIBRATION_LIMIT;
+                    isCalibrated = true;
+                    document.getElementById('calib-overlay').style.display = 'none';
+                    return;
+                }
+            }
+
+            // 3. NORMALIZE
+            const val = {};
+            for (const key in raw) {
+                val[key] = Math.max(0, raw[key] - neutralBaseline[key]);
+            }
+
+            document.getElementById('debug-values').innerText = 
+                `Puff: ${val.puff.toFixed(2)} | Sad(Frown/Press): ${val.frown.toFixed(2)}/${val.press.toFixed(2)}`;
+
+            // 4. LOGIC TREE (Improved Puff & Sad)
+            
+            let scores = {
+                "Scream":    (val.open > 0.5) ? val.open * 3.0 : 0,
+                
+                // PUFF FIX: Check if mouth is NOT smiling (smiles lift cheeks) and jaw is CLOSED
+                "Puff":      (val.puff > 0.05 && val.open < 0.2 && val.smile < 0.3) ? val.puff * 6.0 : 0, 
+                
+                "Wink":      (Math.abs(raw.blinkL - raw.blinkR) > 0.35) ? Math.abs(raw.blinkL - raw.blinkR) * 2.0 : 0,
+                "Roll Eyes": (val.lookUp > 0.2) ? val.lookUp * 3.0 : 0,
+                "Kiss":      (val.pucker > 0.3) ? val.pucker * 1.5 : 0,
+                "Cringe":    (val.sneer > 0.1 || val.mouthShrug > 0.2) ? (val.sneer + val.mouthShrug) * 1.8 : 0,
+                "Smirk":     (Math.abs(val.mouthL - val.mouthR) > 0.2 && val.smile < 0.3) ? 1.5 : 0,
+                "Happy":     val.smile > 0.2 ? val.smile : 0,
+                "Surprised": (val.open > 0.1 || val.browUp > 0.2) ? (val.open + val.browUp) : 0,
+                "Angry":     (val.browDown > 0.2 && val.smile < 0.1) ? val.browDown * 1.5 : 0,
+                
+                // SAD FIX: Combine Frown, Press (Pout), and Shrug
+                "Sad":       (val.frown > 0.1 || val.press > 0.1 || val.mouthShrug > 0.2) ? Math.max(val.frown, val.press, val.mouthShrug) * 2.0 : 0
+            };
+
+            // CONFLICT KILLERS
+            if (scores["Wink"] > 0.5) scores["Angry"] = 0;
+            if (scores["Scream"] > 0.6) scores["Surprised"] = 0;
+            if (scores["Cringe"] > 0.4) scores["Happy"] = 0;
+            if (scores["Puff"] > 0.5) scores["Happy"] = 0; 
+
+            // FIND WINNER
+            let maxScore = 0;
+            let winner = "Neutral";
+
+            for (const [emotion, score] of Object.entries(scores)) {
+                if (!lastScores[emotion]) lastScores[emotion] = 0;
+                lastScores[emotion] = (score * (1 - SMOOTHING_FACTOR)) + (lastScores[emotion] * SMOOTHING_FACTOR);
+                
+                if (lastScores[emotion] > 0.2 && lastScores[emotion] > maxScore) {
+                    maxScore = lastScores[emotion];
+                    winner = emotion;
+                }
+            }
+            updateUI(winner, maxScore);
+        }
+
+        function updateUI(emotion, confidence) {
+            const config = EMOTIONS[emotion] || EMOTIONS.Neutral;
+            const textEl = document.getElementById('status-text');
+            const fillEl = document.getElementById('confidence-fill');
+
+            textEl.innerText = emotion;
+            textEl.style.color = "#" + config.color.toString(16).padStart(6,'0');
+
+            let displayConf = Math.min(100, Math.max(5, (confidence * 100)));
+            if(emotion === "Neutral") displayConf = 5; 
+
+            fillEl.style.width = displayConf + "%";
+            fillEl.style.background = "#" + config.color.toString(16).padStart(6,'0');
+
+            targetColor.setHex(config.color);
+            targetScale = config.scale;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (faceLandmarker && video.currentTime > 0) {
+                const r = faceLandmarker.detectForVideo(video, performance.now());
+                if (r.faceBlendshapes.length > 0) analyze(r.faceBlendshapes[0].categories);
+            }
+            sphereMesh.material.color.lerp(targetColor, 0.15);
+            const currentScale = sphereMesh.scale.x;
+            const newScale = THREE.MathUtils.lerp(currentScale, targetScale, 0.1);
+            sphereMesh.scale.set(newScale, newScale, newScale);
+            sphereMesh.rotation.y += 0.005; sphereMesh.rotation.x += 0.002;
+            renderer.render(scene, camera);
+        }
+
+        // --- MENU LOGIC (CLEANUP MODE) ---
+        function injectButton() {
+            const sidebar = document.getElementById('sidebar');
+            if(!sidebar) { requestAnimationFrame(injectButton); return; }
+            
+            // 1. Remove "Analyzer" or "Guide" buttons (duplicates)
+            Array.from(sidebar.getElementsByTagName('button')).forEach(b => {
+                if(b.innerHTML.includes('Guide') || b.innerHTML.includes('Cheat') || b.innerHTML.includes('Analyzer') || b.innerHTML.includes('Close')) {
+                    b.style.display = 'none'; 
+                }
+            });
+
+            // 2. Remove "DEV TOOLS" Header
+            Array.from(sidebar.getElementsByTagName('h3')).forEach(h => {
+                if(h.innerHTML.includes('DEV') || h.innerHTML.includes('TOOLS')) {
+                    h.style.display = 'none';
+                }
+            });
+
+            // 3. Add Guide Button
+            const btn = document.createElement('button');
+            btn.className = 'cheat-btn';
+            btn.innerHTML = '📘 Expression Guide';
+            btn.onclick = () => { toggleGuide(); toggleMenu(); };
+            
+            // Add at the end
+            sidebar.appendChild(btn);
+        }
+        injectButton();
+
+        // Drag & Modal Logic
+        const modal = document.getElementById('guide-modal');
+        const dragZone = document.getElementById('modal-drag-zone');
+        let isDragging = false, startX, startY, initialLeft, initialTop;
+        dragZone.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            const rect = modal.getBoundingClientRect();
+            modal.style.transform = 'none'; modal.style.left = rect.left + 'px'; modal.style.top = rect.top + 'px';
+            startX = e.clientX; startY = e.clientY; initialLeft = rect.left; initialTop = rect.top;
+        });
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            modal.style.left = `${initialLeft + (e.clientX - startX)}px`;
+            modal.style.top = `${initialTop + (e.clientY - startY)}px`;
+        });
+        document.addEventListener('mouseup', () => isDragging = false);
+
+        window.toggleGuide = function() {
+            modal.style.display = modal.style.display === 'block' ? 'none' : 'block';
+            if(modal.style.display === 'block' && modal.style.left === "") modal.style.transform = "translate(-50%, -50%)";
+        }
+
+        init();
+    </script>
+</body>
+</html>

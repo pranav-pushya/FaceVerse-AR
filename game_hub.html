@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FaceVerse Mimic Arena</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎭</text></svg>">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;700;900&family=Permanent+Marker&display=swap" rel="stylesheet">
+    <style>
+        /* BASE STYLES & VARIABLES override for this page */
+        :root {
+            --hub-bg: #000000;
+            --hub-text: #ffffff;
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --card-border: rgba(255, 255, 255, 0.1);
+            --card-hover-shadow: rgba(0, 255, 204, 0.3);
+            --title-gradient: linear-gradient(to right, #fff, #00ffcc);
+            --subtitle-color: rgba(255, 255, 255, 0.7);
+        }
+
+        /* LIGHT MODE OVERRIDES */
+        [data-theme="light"] {
+            --hub-bg: #f0f2f5;
+            --hub-text: #1a1a1a;
+            --card-bg: rgba(255, 255, 255, 0.6);
+            --card-border: rgba(0, 0, 0, 0.1);
+            --card-hover-shadow: rgba(0, 0, 0, 0.2);
+            --title-gradient: linear-gradient(to right, #2c3e50, #4ca1af);
+            --subtitle-color: #555;
+        }
+
+        body {
+            background: var(--hub-bg);
+            overflow: hidden;
+            font-family: 'Outfit', sans-serif;
+            color: var(--hub-text);
+            transition: background 0.3s, color 0.3s;
+        }
+
+        /* ANIMATED BACKGROUND CANVAS */
+        canvas {
+            position: absolute;
+            top: 0; left: 0;
+            z-index: 0;
+            /* Opacity managed in JS */
+        }
+
+        /* MAIN CONTAINER */
+        .hub-container {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            width: 90%;
+            max-width: 900px;
+            text-align: center;
+        }
+
+        /* HEADER TEXT */
+        h1 {
+            font-size: 5rem;
+            margin: 0 0 10px 0;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: -2px;
+            background: var(--title-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 20px rgba(0,0,0,0.2));
+        }
+
+        p.subtitle {
+            font-size: 1.3rem;
+            color: var(--subtitle-color);
+            margin-bottom: 60px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        /* CARDS GRID */
+        .difficulty-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 40px;
+            padding: 0 20px;
+        }
+
+        /* GLASS CARDS */
+        .level-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 25px;
+            padding: 40px;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            position: relative;
+            overflow: hidden;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        /* HOVER EFFECTS */
+        .level-card:hover {
+            transform: translateY(-15px) scale(1.03);
+            border-color: var(--accent-color);
+            box-shadow: 0 20px 50px var(--card-hover-shadow);
+        }
+
+        .card-icon {
+            font-size: 5rem;
+            margin-bottom: 20px;
+            display: block;
+            transition: transform 0.4s;
+            filter: drop-shadow(0 0 10px rgba(0,0,0,0.2));
+        }
+
+        .level-card:hover .card-icon {
+            transform: scale(1.2) rotate(10deg);
+        }
+
+        .level-card h2 {
+            font-size: 2rem;
+            margin: 0;
+            font-weight: 800;
+            color: var(--hub-text);
+        }
+
+        .level-card p {
+            margin-top: 10px;
+            font-size: 1rem;
+            color: var(--subtitle-color);
+        }
+
+        /* Level Specific Hover Colors */
+        .lv1:hover h2 { color: #00ffcc; }
+        .lv2:hover h2 { color: #ff0055; }
+        
+        /* Shake animation for Insane Mode */
+        .lv2:hover .card-icon { animation: shake 0.5s infinite; }
+
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+
+        /* BACK BUTTON */
+        .back-btn {
+            position: absolute;
+            bottom: 30px; left: 30px;
+            color: var(--subtitle-color);
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            cursor: pointer;
+            padding: 10px 20px;
+            border: 1px solid var(--card-border);
+            border-radius: 30px;
+            transition: 0.3s;
+            z-index: 20;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+            background: var(--card-bg);
+            backdrop-filter: blur(5px);
+        }
+        .back-btn:hover {
+            background: var(--accent-color);
+            color: #fff;
+            border-color: var(--accent-color);
+        }
+
+        /* AUTHOR STAMP */
+        .author-stamp {
+            position: fixed;
+            bottom: 30px; right: 40px;
+            z-index: 20;
+            font-family: 'Permanent Marker', cursive;
+            color: var(--subtitle-color);
+            font-size: 1.2rem;
+            transform: rotate(-5deg);
+            border: 2px solid var(--subtitle-color);
+            padding: 5px 15px;
+            border-radius: 5px;
+            pointer-events: none;
+            opacity: 0.6;
+            transition: 0.3s;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            h1 { font-size: 3rem; }
+            .difficulty-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="bg-canvas"></canvas>
+
+    <div class="hub-container">
+        <h1>MIMIC ARENA</h1>
+        <p class="subtitle">Select Your Challenge</p>
+
+        <div class="difficulty-grid">
+            <div class="level-card lv1" onclick="window.location.href='game_lv1.html'">
+                <span class="card-icon">🧘</span>
+                <h2>NORMAL</h2>
+                <p>Standard Speed. Warmup.</p>
+            </div>
+
+            <div class="level-card lv2" onclick="window.location.href='game_lv2.html'">
+                <span class="card-icon">🔥</span>
+                <h2>INSANE</h2>
+                <p>Maximum Chaos. Reflexes.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="back-btn" onclick="window.location.href='index.html'">← RETURN HOME</div>
+    
+    <div class="author-stamp">Pranav Pushya</div>
+
+    <script src="main.js"></script>
+
+    <script>
+        // --- Menu Cleaning ---
+        function cleanMenu() {
+            const sidebar = document.getElementById('sidebar');
+            if(!sidebar) { requestAnimationFrame(cleanMenu); return; }
+            const elementsToRemove = ['Analyzer', 'Cheat', 'Guide', 'Close', 'DEV TOOLS'];
+            Array.from(sidebar.getElementsByTagName('button')).forEach(b => {
+                if (elementsToRemove.some(text => b.innerHTML.includes(text))) b.style.display = 'none';
+            });
+            Array.from(sidebar.getElementsByTagName('h3')).forEach(h => {
+                if (elementsToRemove.some(text => h.innerHTML.includes(text))) h.style.display = 'none';
+            });
+        }
+        cleanMenu(); 
+
+        // --- OPTIMIZED BACKGROUND ANIMATION ---
+        const canvas = document.getElementById('bg-canvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+
+        // Only FACE emojis now
+        const faceEmojis = ['😁', '😲', '😡', '😔', '😉', '🐡', '🙄', '🤢', '😑', '😱', '🤯', '🥴', '🤬', '🤡', '👻', '👽'];
+        const particles = [];
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        class Particle {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                
+                // WIDER SIZE RANGE: 20px to 70px for visible difference
+                this.size = Math.random() * 50 + 20; 
+                
+                this.emoji = faceEmojis[Math.floor(Math.random() * faceEmojis.length)];
+                
+                // Parallax speed based on size
+                const speedMult = this.size / 30; 
+                this.speedX = (Math.random() - 0.5) * 1.5 * speedMult; 
+                this.speedY = (Math.random() - 0.5) * 1.5 * speedMult;
+                
+                this.rotation = Math.random() * Math.PI * 2;
+                this.rotSpeed = (Math.random() - 0.5) * 0.03;
+                
+                // Good visibility opacity
+                this.opacity = Math.random() * 0.5 + 0.3; 
+            }
+
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.rotation += this.rotSpeed;
+
+                if (this.x > width + 70) this.x = -70;
+                if (this.x < -70) this.x = width + 70;
+                if (this.y > height + 70) this.y = -70;
+                if (this.y < -70) this.y = height + 70;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                ctx.font = `${this.size}px serif`;
+                ctx.globalAlpha = this.opacity;
+                
+                // Removed heavy shadows for smooth performance
+                // Removed fillStyle override so emojis look colorful naturally
+                
+                ctx.fillText(this.emoji, -this.size/2, -this.size/2);
+                ctx.restore();
+            }
+        }
+
+        function initParticles() {
+            particles.length = 0;
+            // 35 particles is a good balance
+            for(let i = 0; i < 35; i++) {
+                particles.push(new Particle());
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+            requestAnimationFrame(animate);
+        }
+
+        initParticles();
+        animate();
+    </script>
+</body>
+</html>
