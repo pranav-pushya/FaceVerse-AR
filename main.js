@@ -33,14 +33,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
 window.toggleMenu = function() {
     const sidebar = document.getElementById('sidebar');
-    const btn = document.querySelector('.menu-btn');
+    const btn = document.querySelector('.menu-btn') || document.querySelector('.menu-toggle');
     sidebar.classList.toggle('active');
-    
-    // Icon toggle
-    if(sidebar.classList.contains('active')) {
-        btn.innerHTML = "✕";
+    if (sidebar.classList.contains('active')) {
+        if (btn) btn.innerHTML = "✕";
     } else {
-        btn.innerHTML = "☰";
+        if (btn) btn.innerHTML = btn.classList.contains('menu-toggle') ? "⋮" : "☰";
     }
 }
 

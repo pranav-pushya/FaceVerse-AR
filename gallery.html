@@ -322,7 +322,13 @@
             openModal('Delete Photo?', 'This action cannot be undone.', () => {
                 let photos = JSON.parse(localStorage.getItem('faceverse_gallery') || '[]');
                 photos.splice(index, 1);
-                localStorage.setItem('faceverse_gallery', JSON.stringify(photos));
+                try {
+                    localStorage.setItem('faceverse_gallery', JSON.stringify(photos));
+                } catch(e) {
+                    if (e.name === 'QuotaExceededError') {
+                        alert('⚠️ Gallery is full! Delete some photos to save new ones.');
+                    }
+                }
                 loadGallery();
             });
         }

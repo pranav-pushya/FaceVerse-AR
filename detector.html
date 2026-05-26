@@ -145,14 +145,14 @@
         // --- CALIBRATION VARIABLES ---
         let isCalibrated = false;
         let calibrationFrames = 0;
-        const CALIBRATION_LIMIT = 50; 
+        const CALIBRATION_LIMIT = 90; 
         let neutralBaseline = {}; 
 
         // --- 3D SETUP ---
         let scene, camera, renderer, sphereMesh;
         let faceLandmarker, video;
         let lastScores = {}; 
-        const SMOOTHING_FACTOR = 0.5; // Lower = Faster response
+        const SMOOTHING_FACTOR = 0.3; // Lower = Faster response
         let targetColor = new THREE.Color(0xffffff);
         let targetScale = 1.0;
 
@@ -173,36 +173,55 @@
 
         // --- INIT ---
         async function init() {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-            camera.position.z = 5;
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            document.body.appendChild(renderer.domElement);
+            try {
+                scene = new THREE.Scene();
+                camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+                camera.position.z = 5;
+                renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                document.body.appendChild(renderer.domElement);
 
-            const geometry = new THREE.IcosahedronGeometry(1.8, 1); 
-            const material = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.4 });
-            sphereMesh = new THREE.Mesh(geometry, material);
-            scene.add(sphereMesh);
-            scene.add(new THREE.DirectionalLight(0xffffff, 2));
+                const geometry = new THREE.IcosahedronGeometry(1.8, 1); 
+                const material = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.4 });
+                sphereMesh = new THREE.Mesh(geometry, material);
+                scene.add(sphereMesh);
+                scene.add(new THREE.DirectionalLight(0xffffff, 2));
 
-            const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm");
-            faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
-                baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`, delegate: "GPU" },
-                outputFaceBlendshapes: true, runningMode: "VIDEO", numFaces: 1
-            });
+                const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm");
+                faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+                    baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`, delegate: "GPU" },
+                    outputFaceBlendshapes: true, runningMode: "VIDEO", numFaces: 1
+                });
 
-            video = document.getElementById('webcam');
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            video.srcObject = stream;
-            video.addEventListener("loadeddata", animate);
-            
-            window.addEventListener('keydown', (e) => {
-                if(e.key === 'd') {
-                    const dbg = document.getElementById('debug-values');
-                    dbg.style.display = dbg.style.display === 'block' ? 'none' : 'block';
-                }
-            });
+                video = document.getElementById('webcam');
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+                video.addEventListener("loadeddata", animate);
+                
+                window.addEventListener('keydown', (e) => {
+                    if(e.key === 'd') {
+                        const dbg = document.getElementById('debug-values');
+                        dbg.style.display = dbg.style.display === 'block' ? 'none' : 'block';
+                    }
+                });
+            } catch (err) {
+                const msg = err.name === 'NotAllowedError'
+                    ? '🚫 Camera access denied. Allow camera in browser settings and reload.'
+                    : err.name === 'NotFoundError'
+                    ? '📷 No camera detected on this device.'
+                    : `⚠️ Error: ${err.message}`;
+                document.getElementById('calib-overlay').innerHTML = `
+                    <div style="text-align:center; padding:3rem; color:var(--accent-color)">
+                        <div style="font-size:3rem; margin-bottom:1rem">📷</div>
+                        <p style="font-size:1rem; margin-bottom:1.5rem">${msg}</p>
+                        <button onclick="location.reload()" 
+                            style="padding:.6rem 1.5rem; background:var(--accent-color);
+                                   color:#000; border:none; border-radius:8px;
+                                   cursor:pointer; font-size:1rem; font-weight:bold">
+                            Retry
+                </button>
+                    </div>`;
+            }
         }
 
         const getRaw = (blendshapes, name) => blendshapes.find(b => b.categoryName === name)?.score || 0;
@@ -215,6 +234,10 @@
                 browDown: (getRaw(blendshapes, 'browDownLeft') + getRaw(blendshapes, 'browDownRight')) / 2,
                 browUp: (getRaw(blendshapes, 'browOuterUpLeft') + getRaw(blendshapes, 'browOuterUpRight')) / 2,
                 browInner: getRaw(blendshapes, 'browInnerUp'),
+                eyeWideL: getRaw(blendshapes, 'eyeWideLeft'),
+                eyeWideR: getRaw(blendshapes, 'eyeWideRight'),
+                cheekSquintL: getRaw(blendshapes, 'cheekSquintLeft'),
+                cheekSquintR: getRaw(blendshapes, 'cheekSquintRight'),
                 open: getRaw(blendshapes, 'jawOpen'),
                 frown: (getRaw(blendshapes, 'mouthFrownLeft') + getRaw(blendshapes, 'mouthFrownRight')) / 2,
                 pucker: getRaw(blendshapes, 'mouthPucker'),
@@ -231,6 +254,9 @@
 
             // 2. CALIBRATION
             if (!isCalibrated) {
+                const progress = Math.round((calibrationFrames / CALIBRATION_LIMIT) * 100);
+                const calibText = document.getElementById('calib-text');
+                if (calibText) calibText.innerText = `CALIBRATING... ${progress}%`;
                 if (calibrationFrames < CALIBRATION_LIMIT) {
                     for (const key in raw) {
                         if (!neutralBaseline[key]) neutralBaseline[key] = 0;
@@ -257,30 +283,36 @@
 
             // 4. LOGIC TREE (Improved Puff & Sad)
             
+            const eyeWideAvg = ((val.eyeWideL || 0) + (val.eyeWideR || 0)) / 2;
+            const cheekSquint = ((val.cheekSquintL || 0) + (val.cheekSquintR || 0)) / 2;
+
             let scores = {
                 "Scream":    (val.open > 0.5) ? val.open * 3.0 : 0,
-                
-                // PUFF FIX: Check if mouth is NOT smiling (smiles lift cheeks) and jaw is CLOSED
-                "Puff":      (val.puff > 0.05 && val.open < 0.2 && val.smile < 0.3) ? val.puff * 6.0 : 0, 
-                
-                "Wink":      (Math.abs(raw.blinkL - raw.blinkR) > 0.35) ? Math.abs(raw.blinkL - raw.blinkR) * 2.0 : 0,
+                "Puff":      (val.puff > 0.05 && val.open < 0.2 && val.smile < 0.3) ? val.puff * 6.0 : 0,
+                "Wink":      (Math.abs(raw.blinkL - raw.blinkR) > 0.28) ? Math.abs(raw.blinkL - raw.blinkR) * 2.5 : 0,
                 "Roll Eyes": (val.lookUp > 0.2) ? val.lookUp * 3.0 : 0,
-                "Kiss":      (val.pucker > 0.3) ? val.pucker * 1.5 : 0,
+                "Kiss":      (val.pucker > 0.25) ? val.pucker * 2.0 : 0,
                 "Cringe":    (val.sneer > 0.1 || val.mouthShrug > 0.2) ? (val.sneer + val.mouthShrug) * 1.8 : 0,
-                "Smirk":     (Math.abs(val.mouthL - val.mouthR) > 0.2 && val.smile < 0.3) ? 1.5 : 0,
-                "Happy":     val.smile > 0.2 ? val.smile : 0,
-                "Surprised": (val.open > 0.1 || val.browUp > 0.2) ? (val.open + val.browUp) : 0,
-                "Angry":     (val.browDown > 0.2 && val.smile < 0.1) ? val.browDown * 1.5 : 0,
-                
-                // SAD FIX: Combine Frown, Press (Pout), and Shrug
-                "Sad":       (val.frown > 0.1 || val.press > 0.1 || val.mouthShrug > 0.2) ? Math.max(val.frown, val.press, val.mouthShrug) * 2.0 : 0
+                "Smirk":     (Math.abs(val.mouthL - val.mouthR) > 0.18 && val.smile < 0.3) ? Math.abs(val.mouthL - val.mouthR) * 4.0 : 0,
+                "Happy":     val.smile > 0.18 ? val.smile * 1.2 : 0,
+                "Surprised": (val.open > 0.15 || val.browUp > 0.15 || eyeWideAvg > 0.2 || val.browInner > 0.2)
+                             ? (val.open + val.browUp + eyeWideAvg + val.browInner * 0.5) : 0,
+                "Angry":     (val.browDown > 0.15 && val.smile < 0.1)
+                             ? (val.browDown + cheekSquint * 0.5) * 1.5 : 0,
+                "Sad":       (val.frown > 0.08 || val.press > 0.08 || (val.browInner > 0.15 && val.smile < 0.1))
+                             ? Math.max(val.frown, val.press, val.mouthShrug, val.browInner * 0.5) * 2.0 : 0
             };
 
             // CONFLICT KILLERS
-            if (scores["Wink"] > 0.5) scores["Angry"] = 0;
-            if (scores["Scream"] > 0.6) scores["Surprised"] = 0;
-            if (scores["Cringe"] > 0.4) scores["Happy"] = 0;
-            if (scores["Puff"] > 0.5) scores["Happy"] = 0; 
+            if (scores["Wink"] > 0.5)      scores["Angry"] = 0;
+            if (scores["Scream"] > 0.6)    scores["Surprised"] = 0;
+            if (scores["Cringe"] > 0.4)    scores["Happy"] = 0;
+            if (scores["Puff"] > 0.5)      scores["Happy"] = 0;
+            if (scores["Happy"] > 0.3)     scores["Sad"] = 0;
+            if (scores["Sad"] > 0.3)       scores["Happy"] = 0;
+            if (scores["Kiss"] > 0.4)      scores["Surprised"] = 0;
+            if (scores["Scream"] > 0.5)    scores["Kiss"] = 0;
+            if (scores["Angry"] > 0.4)     scores["Happy"] = 0;
 
             // FIND WINNER
             let maxScore = 0;
@@ -290,7 +322,7 @@
                 if (!lastScores[emotion]) lastScores[emotion] = 0;
                 lastScores[emotion] = (score * (1 - SMOOTHING_FACTOR)) + (lastScores[emotion] * SMOOTHING_FACTOR);
                 
-                if (lastScores[emotion] > 0.2 && lastScores[emotion] > maxScore) {
+                if (lastScores[emotion] > 0.25 && lastScores[emotion] > maxScore) {
                     maxScore = lastScores[emotion];
                     winner = emotion;
                 }
