@@ -261,8 +261,15 @@
         </div>
         <div class="filter-btn" onclick="toggleFilter('love', this)"><span>💖</span><span class="label">Love</span>
         </div>
-        <div class="filter-btn" onclick="toggleFilter('devil', this)"><span>😈</span><span class="label">Devil</span>
-        </div>
+        <div class="filter-btn" onclick="toggleFilter('devil', this)"><span>😈</span><span class="label">Devil</span></div>
+
+        <div class="sep"></div>
+
+        <div class="filter-btn" onclick="toggleFilter('neon', this)"><span>⚡</span><span class="label">Neon</span></div>
+        <div class="filter-btn" onclick="toggleFilter('glitch', this)"><span>📺</span><span class="label">Glitch</span></div>
+        <div class="filter-btn" onclick="toggleFilter('rainbow', this)"><span>🌈</span><span class="label">Rainbow</span></div>
+        <div class="filter-btn" onclick="toggleFilter('alien', this)"><span>👾</span><span class="label">Alien</span></div>
+        <div class="filter-btn" onclick="toggleFilter('fire', this)"><span>🔥</span><span class="label">Fire</span></div>
     </div>
 
     <script type="importmap">
@@ -355,6 +362,11 @@
                 btnElement.classList.add('active');
                 particles = [];
                 rainDrops = [];
+                fireParticles = [];
+                glitchTimer = 0;
+                glitchActive = false;
+                glitchSlices = [];
+                rainbowOffset = 0;
                 thugY = -300; thugVelocity = 0;
                 spiderOffset = 0;
 
@@ -1435,6 +1447,333 @@
             ctx.globalAlpha = 1;
         }
 
+        // ─── NEON GLOW ────────────────────────────────────────────────
+        function drawNeon(lm) {
+            const { cx, cy, faceW, eyeDist, angle } = getFaceMetrics(lm);
+            const time = Date.now() * 0.002;
+            const hue = (time * 40) % 360;
+
+            // Pulsing glow vignette
+            const pulse = 0.5 + Math.sin(time * 3) * 0.15;
+            const vg = ctx.createRadialGradient(cx, cy, faceW*0.1, cx, cy, faceW*1.1);
+            vg.addColorStop(0, `hsla(${hue},100%,60%,${0.08 * pulse})`);
+            vg.addColorStop(0.6, `hsla(${hue+60},100%,50%,${0.04 * pulse})`);
+            vg.addColorStop(1, 'transparent');
+            ctx.fillStyle = vg; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+            // Neon face outline — color cycles
+            ctx.save();
+            const outlineIds = [10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
+            [3, 1.5].forEach((lw, pass) => {
+                ctx.strokeStyle = pass === 0
+                    ? `hsla(${hue},100%,60%,0.4)`
+                    : `hsla(${hue+30},100%,85%,0.9)`;
+                ctx.lineWidth = lw;
+                ctx.shadowBlur = pass === 0 ? 20 : 8;
+                ctx.shadowColor = `hsl(${hue},100%,60%)`;
+                ctx.beginPath();
+                outlineIds.forEach((id, i) => {
+                    const p = getPoint(lm[id]);
+                    i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
+                });
+                ctx.closePath(); ctx.stroke();
+            });
+            ctx.restore();
+            ctx.shadowBlur = 0;
+
+            // Neon eye rings
+            const { lEye, rEye } = getFaceMetrics(lm);
+            [lEye, rEye].forEach((eye, ei) => {
+                const h2 = (hue + ei * 120) % 360;
+                ctx.beginPath();
+                ctx.arc(eye.x, eye.y, eyeDist * 0.32, 0, Math.PI*2);
+                ctx.strokeStyle = `hsl(${h2},100%,70%)`;
+                ctx.lineWidth = 2.5;
+                ctx.shadowBlur = 18; ctx.shadowColor = `hsl(${h2},100%,70%)`;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            });
+
+            // Neon text
+            ctx.fillStyle = `hsl(${hue},100%,70%)`;
+            ctx.shadowBlur = 12; ctx.shadowColor = `hsl(${hue},100%,70%)`;
+            ctx.font = `bold ${Math.max(10, eyeDist*0.22)}px monospace`;
+            ctx.textAlign = 'center';
+            ctx.fillText('NEON MODE', cx, getPoint(lm[10]).y - eyeDist*0.5);
+            ctx.shadowBlur = 0;
+        }
+
+        // ─── GLITCH ───────────────────────────────────────────────────
+        let glitchTimer = 0;
+        let glitchActive = false;
+        let glitchSlices = [];
+
+        function drawGlitch(lm) {
+            const { cx, cy, faceW, eyeDist } = getFaceMetrics(lm);
+            glitchTimer++;
+
+            // Trigger glitch every ~60 frames
+            if (glitchTimer % 55 === 0) {
+                glitchActive = true;
+                glitchSlices = [];
+                const numSlices = Math.floor(Math.random()*6) + 3;
+                for (let i = 0; i < numSlices; i++) {
+                    glitchSlices.push({
+                        y: Math.random() * canvas.height,
+                        h: Math.random() * 30 + 5,
+                        offset: (Math.random()-0.5) * 30,
+                        duration: Math.floor(Math.random()*8)+2,
+                        life: 0
+                    });
+                }
+            }
+            if (glitchTimer % 55 === 8) glitchActive = false;
+
+            if (glitchActive && glitchSlices.length) {
+                // RGB split lines
+                glitchSlices.forEach(s => {
+                    const imgData = ctx.getImageData(0, s.y, canvas.width, s.h);
+                    ctx.putImageData(imgData, s.offset, s.y);
+                    // Chromatic aberration — red channel offset
+                    ctx.fillStyle = 'rgba(255,0,0,0.15)';
+                    ctx.fillRect(s.offset + 4, s.y, canvas.width, s.h);
+                    ctx.fillStyle = 'rgba(0,255,255,0.15)';
+                    ctx.fillRect(s.offset - 4, s.y, canvas.width, s.h);
+                    s.life++;
+                });
+                glitchSlices = glitchSlices.filter(s => s.life < s.duration);
+            }
+
+            // Scanlines overlay
+            ctx.fillStyle = 'rgba(0,0,0,0.0)';
+            for (let y = 0; y < canvas.height; y += 4) {
+                ctx.fillStyle = 'rgba(0,0,0,0.06)';
+                ctx.fillRect(0, y, canvas.width, 2);
+            }
+
+            // Face outline in glitch colors
+            const outlineIds = [10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
+            [[-3,'rgba(255,0,0,0.7)'], [0,'rgba(0,255,255,0.7)'], [2,'rgba(255,255,255,0.5)']].forEach(([offset, color]) => {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                outlineIds.forEach((id, i) => {
+                    const p = getPoint(lm[id]);
+                    i === 0 ? ctx.moveTo(p.x + offset, p.y) : ctx.lineTo(p.x + offset, p.y);
+                });
+                ctx.closePath(); ctx.stroke();
+            });
+
+            // Glitch counter text
+            ctx.fillStyle = glitchActive ? '#ff0055' : 'rgba(0,255,255,0.7)';
+            ctx.font = `${Math.max(9, eyeDist*0.2)}px monospace`;
+            ctx.textAlign = 'left';
+            ctx.fillText(`SYS_${(glitchTimer % 999).toString().padStart(3,'0')}`, 20, 30);
+        }
+
+        // ─── RAINBOW ──────────────────────────────────────────────────
+        let rainbowOffset = 0;
+        function drawRainbow(lm) {
+            const { cx, cy, faceW, fore, eyeDist, angle } = getFaceMetrics(lm);
+            rainbowOffset += 2;
+
+            // Rainbow arc above head
+            const arcR = eyeDist * 2.2;
+            const arcBands = 7;
+            const rainbowColors = ['#FF0000','#FF7F00','#FFFF00','#00CC00','#0000FF','#4B0082','#8B00FF'];
+            const bandWidth = eyeDist * 0.28;
+
+            ctx.save();
+            ctx.translate(fore.x, fore.y - eyeDist*0.5);
+            ctx.rotate(angle);
+            for (let i = 0; i < arcBands; i++) {
+                ctx.beginPath();
+                ctx.arc(0, 0, arcR - i*bandWidth*0.9, Math.PI, 0);
+                ctx.strokeStyle = rainbowColors[i];
+                ctx.lineWidth = bandWidth;
+                ctx.globalAlpha = 0.75;
+                ctx.stroke();
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+
+            // Rainbow face outline — hue shifts along contour
+            const outlineIds = [10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
+            outlineIds.forEach((id, i) => {
+                if (i === outlineIds.length - 1) return;
+                const p1 = getPoint(lm[outlineIds[i]]);
+                const p2 = getPoint(lm[outlineIds[i+1]]);
+                const hue = (i / outlineIds.length * 360 + rainbowOffset) % 360;
+                ctx.strokeStyle = `hsla(${hue},100%,65%,0.85)`;
+                ctx.lineWidth = 3;
+                ctx.shadowBlur = 6; ctx.shadowColor = `hsl(${hue},100%,65%)`;
+                ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+            });
+            ctx.shadowBlur = 0;
+
+            // Cheek stars
+            const { lCheek, rCheek } = getFaceMetrics(lm);
+            [lCheek, rCheek].forEach((c, ci) => {
+                const hue = (rainbowOffset + ci * 180) % 360;
+                ctx.fillStyle = `hsla(${hue},100%,65%,0.7)`;
+                ctx.font = `${eyeDist*0.5}px serif`;
+                ctx.textAlign = 'center';
+                ctx.fillText('⭐', c.x, c.y + eyeDist*0.2);
+            });
+        }
+
+        // ─── ALIEN ────────────────────────────────────────────────────
+        function drawAlien(lm) {
+            const { cx, cy, fore, lEye, rEye, nose, faceW, eyeDist, angle } = getFaceMetrics(lm);
+            const time = Date.now() * 0.0015;
+
+            // Green atmosphere
+            const atmo = ctx.createRadialGradient(cx, cy, faceW*0.1, cx, cy, faceW*1.2);
+            atmo.addColorStop(0, 'rgba(0,40,0,0.2)');
+            atmo.addColorStop(1, 'rgba(0,20,0,0.55)');
+            ctx.fillStyle = atmo; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+            // Alien antenna
+            ctx.save();
+            ctx.translate(fore.x, fore.y);
+            ctx.rotate(angle);
+            ctx.strokeStyle = '#44ff88'; ctx.lineWidth = 2;
+            ctx.shadowBlur = 10; ctx.shadowColor = '#44ff88';
+            [-1, 1].forEach(side => {
+                ctx.beginPath();
+                ctx.moveTo(side * eyeDist*0.3, 0);
+                ctx.bezierCurveTo(
+                    side * eyeDist*0.4, -eyeDist*0.8,
+                    side * eyeDist*0.7, -eyeDist*1.1,
+                    side * eyeDist*0.6, -eyeDist*1.5
+                );
+                ctx.stroke();
+                // Glowing orb at tip
+                ctx.fillStyle = `rgba(80,255,140,${0.7 + Math.sin(time+side)*0.3})`;
+                ctx.beginPath(); ctx.arc(side*eyeDist*0.6, -eyeDist*1.5, eyeDist*0.1, 0, Math.PI*2); ctx.fill();
+            });
+            ctx.shadowBlur = 0;
+            ctx.restore();
+
+            // Big alien eyes
+            [lEye, rEye].forEach((eye, i) => {
+                // Outer black
+                ctx.fillStyle = 'rgba(5,10,5,0.9)';
+                ctx.beginPath(); ctx.ellipse(eye.x, eye.y, eyeDist*0.55, eyeDist*0.4, angle + (i===0?-0.1:0.1), 0, Math.PI*2); ctx.fill();
+                // Green iris
+                const iris = ctx.createRadialGradient(eye.x, eye.y, 0, eye.x, eye.y, eyeDist*0.38);
+                iris.addColorStop(0, 'rgba(0,255,100,0.95)');
+                iris.addColorStop(0.6, 'rgba(0,180,60,0.6)');
+                iris.addColorStop(1, 'transparent');
+                ctx.fillStyle = iris;
+                ctx.beginPath(); ctx.ellipse(eye.x, eye.y, eyeDist*0.42, eyeDist*0.32, angle + (i===0?-0.1:0.1), 0, Math.PI*2); ctx.fill();
+                // Pupil
+                ctx.fillStyle = '#000';
+                ctx.beginPath(); ctx.ellipse(eye.x, eye.y, eyeDist*0.14, eyeDist*0.2, 0, 0, Math.PI*2); ctx.fill();
+                // Eye shine
+                ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                ctx.beginPath(); ctx.ellipse(eye.x - eyeDist*0.1, eye.y - eyeDist*0.08, eyeDist*0.07, eyeDist*0.04, -0.4, 0, Math.PI*2); ctx.fill();
+            });
+
+            // Alien skin tint overlay on face area
+            const skinTint = ctx.createRadialGradient(cx, cy, 0, cx, cy, faceW*0.6);
+            skinTint.addColorStop(0, 'rgba(20,80,30,0.22)');
+            skinTint.addColorStop(1, 'transparent');
+            ctx.fillStyle = skinTint; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+            // Scanning beam
+            const beamY = cy + Math.sin(time*1.5)*faceW*0.5;
+            const beam = ctx.createLinearGradient(0, beamY-2, 0, beamY+2);
+            beam.addColorStop(0, 'transparent');
+            beam.addColorStop(0.5, 'rgba(0,255,100,0.35)');
+            beam.addColorStop(1, 'transparent');
+            ctx.fillStyle = beam; ctx.fillRect(0, beamY-2, canvas.width, 4);
+        }
+
+        // ─── FIRE ─────────────────────────────────────────────────────
+        let fireParticles = [];
+
+        function drawFire(lm) {
+            const { lEye, rEye, fore, chin, cx, cy, faceW, eyeDist, angle } = getFaceMetrics(lm);
+            const time = Date.now() * 0.001;
+
+            // Dark hot atmosphere
+            const atmo = ctx.createRadialGradient(cx, cy, 0, cx, cy, faceW*1.1);
+            atmo.addColorStop(0, 'rgba(30,5,0,0.25)');
+            atmo.addColorStop(1, 'rgba(0,0,0,0.7)');
+            ctx.fillStyle = atmo; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+            // Emit fire particles from top of head + eyes
+            const emitPoints = [
+                { x: fore.x - eyeDist*0.5, y: fore.y },
+                { x: fore.x,               y: fore.y - eyeDist*0.1 },
+                { x: fore.x + eyeDist*0.5, y: fore.y },
+                { x: lEye.x, y: lEye.y },
+                { x: rEye.x, y: rEye.y },
+            ];
+
+            emitPoints.forEach(pt => {
+                for (let i = 0; i < 2; i++) {
+                    fireParticles.push({
+                        x:    pt.x + (Math.random()-0.5)*eyeDist*0.4,
+                        y:    pt.y,
+                        vx:   (Math.random()-0.5)*1.8,
+                        vy:   -(Math.random()*4+2),
+                        life: 1,
+                        size: Math.random()*eyeDist*0.3+eyeDist*0.1,
+                        hue:  Math.random()*40   // orange-red
+                    });
+                }
+            });
+
+            // Cap particles
+            if (fireParticles.length > 300) fireParticles = fireParticles.slice(-280);
+
+            // Draw & update
+            fireParticles.forEach((p, i) => {
+                const alpha = p.life * 0.75;
+                const lightness = 40 + p.life * 25;
+                ctx.globalCompositeOperation = 'screen';
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI*2);
+                ctx.fillStyle = `hsla(${p.hue},100%,${lightness}%,${alpha})`;
+                ctx.fill();
+                p.x  += p.vx + Math.sin(p.y*0.04)*0.4;
+                p.y  += p.vy;
+                p.vy -= 0.08;   // upward acceleration
+                p.vx *= 0.98;
+                p.life -= 0.028;
+            });
+            ctx.globalCompositeOperation = 'source-over';
+            fireParticles = fireParticles.filter(p => p.life > 0);
+
+            // Eye glow
+            [lEye, rEye].forEach(eye => {
+                const eg = ctx.createRadialGradient(eye.x, eye.y, 0, eye.x, eye.y, eyeDist*0.45);
+                eg.addColorStop(0, 'rgba(255,120,0,0.65)');
+                eg.addColorStop(1, 'transparent');
+                ctx.fillStyle = eg;
+                ctx.beginPath(); ctx.ellipse(eye.x, eye.y, eyeDist*0.45, eyeDist*0.32, 0, 0, Math.PI*2); ctx.fill();
+            });
+
+            // Fire face outline
+            const outlineIds = [10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
+            const grad = ctx.createLinearGradient(0, fore.y, 0, chin.y);
+            grad.addColorStop(0, 'rgba(255,180,0,0.8)');
+            grad.addColorStop(0.5, 'rgba(255,60,0,0.6)');
+            grad.addColorStop(1, 'rgba(150,0,0,0.3)');
+            ctx.strokeStyle = grad;
+            ctx.lineWidth = 2.5;
+            ctx.shadowBlur = 12; ctx.shadowColor = 'orangered';
+            ctx.beginPath();
+            outlineIds.forEach((id, i) => {
+                const p = getPoint(lm[id]);
+                i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
+            });
+            ctx.closePath(); ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+
         function renderLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -1454,7 +1793,12 @@
                     else if (activeFilter === 'cat') drawCat(lm);
                     else if (activeFilter === 'dog') drawDog(lm, bs);
                     else if (activeFilter === 'love') drawLove(lm);
-                    else if (activeFilter === 'devil') drawDevil(lm);
+                    else if (activeFilter === 'devil')   drawDevil(lm);
+                    else if (activeFilter === 'neon')    drawNeon(lm);
+                    else if (activeFilter === 'glitch')  drawGlitch(lm);
+                    else if (activeFilter === 'rainbow') drawRainbow(lm);
+                    else if (activeFilter === 'alien')   drawAlien(lm);
+                    else if (activeFilter === 'fire')    drawFire(lm);
                 }
             }
             requestAnimationFrame(renderLoop);
