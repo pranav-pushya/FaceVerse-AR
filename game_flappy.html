@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Face - FaceVerse</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐦</text></svg>">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Bangers&display=swap');
+        body { overflow:hidden; font-family:'Bangers',cursive; user-select:none; background:#1a1a2e!important; margin:0; }
+        #game-canvas { display:block; width:100vw; height:100vh; }
+        #webcam { position:fixed; bottom:16px; left:16px; width:160px; height:120px; border:3px solid #00ffcc; border-radius:12px; z-index:20; object-fit:cover; transform:scaleX(-1); }
+        .overlay { position:fixed; inset:0; background:rgba(0,0,0,0.85); display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:30; }
+        .overlay.hidden { display:none; }
+        .overlay h1 { font-size:4rem; color:#00ffcc; margin:0; text-align:center; }
+        .overlay h1.red { color:#ff0055; }
+        .overlay p { color:#fff; font-size:1.4rem; margin:8px 0; }
+        .overlay .score-big { font-size:3rem; color:#ffcc00; }
+        .overlay button { padding:14px 48px; font-size:1.8rem; font-family:'Bangers',cursive; background:#00ffcc; color:#000; border:none; border-radius:12px; cursor:pointer; margin-top:16px; transition:transform 0.1s; }
+        .overlay button:hover { transform:scale(1.05); }
+        .back-link { margin-top:16px; color:#888; font-family:'Segoe UI',sans-serif; font-size:0.9rem; cursor:pointer; text-decoration:underline; }
+        #hud { position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:15; font-size:3rem; color:#fff; text-shadow:2px 2px #000; }
+        #guide { position:fixed; top:80px; left:50%; transform:translateX(-50%); z-index:15; font-size:1rem; color:rgba(255,255,255,0.5); font-family:'Segoe UI',sans-serif; letter-spacing:2px; }
+    </style>
+</head>
+<body>
+    <canvas id="game-canvas"></canvas>
+    <video id="webcam" autoplay playsinline></video>
+
+    <div id="hud">0</div>
+    <div id="guide">RAISE EYEBROWS TO FLAP ↑</div>
+
+    <div class="overlay" id="start-screen">
+        <h1>🐦 FLAPPY FACE</h1>
+        <p>Raise your eyebrows to flap!</p>
+        <button onclick="initGame()">START</button>
+        <div class="back-link" onclick="window.location.href='game_hub.html'">← Back to Hub</div>
+    </div>
+
+    <div class="overlay hidden" id="gameover-screen">
+        <h1 class="red">GAME OVER</h1>
+        <p class="score-big" id="final-score">0</p>
+        <p id="hs-msg" style="color:#00ffcc"></p>
+        <button onclick="initGame()">RETRY</button>
+        <div class="back-link" onclick="window.location.href='game_hub.html'">← Back to Hub</div>
+    </div>
+
+    <script type="importmap">
+    { "imports": { "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/+esm" } }
+    </script>
+    <script src="main.js"></script>
+    <script src="audio-fx.js"></script>
+    <script src="ai-voice.js"></script>
+    <script src="capture-module.js"></script>
+
+    <script type="module">
+        import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
+
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const video = document.getElementById('webcam');
+        const hud = document.getElementById('hud');
+        const guide = document.getElementById('guide');
+
+        let W, H;
+        function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+        window.addEventListener('resize', resize); resize();
+
+        // ─── GAME STATE ─────────────────────────────────────────
+        let birdY, birdVY, pipes, score, frame, playing, dead;
+        const GRAVITY = 0.45;
+        const FLAP = -7.5;
+        const BIRD_R = 22;
+        const PIPE_W = 70;
+        const GAP = 170;
+        const PIPE_SPEED = 3;
+        let browValue = 0;
+        let lastFlap = 0;
+
+        // ─── MEDIAPIPE ──────────────────────────────────────────
+        let faceLandmarker;
+        async function setupCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { width:320, height:240 } });
+            video.srcObject = stream;
+            await new Promise(r => video.onloadeddata = r);
+        }
+        async function setupFace() {
+            const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm");
+            faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+                baseOptions: { modelAssetPath:"https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task", delegate:"GPU" },
+                runningMode:"VIDEO", numFaces:1, outputFaceBlendshapes:true
+            });
+        }
+
+        // ─── INIT ───────────────────────────────────────────────
+        async function boot() {
+            await setupCamera();
+            await setupFace();
+            document.getElementById('start-screen').querySelector('button').textContent = 'START';
+        }
+        boot();
+
+        window.initGame = function() {
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('gameover-screen').classList.add('hidden');
+            birdY = H / 2;
+            birdVY = 0;
+            pipes = [];
+            score = 0; frame = 0;
+            playing = true; dead = false;
+            hud.textContent = '0';
+            guide.style.display = 'block';
+            if (typeof Voice !== 'undefined') Voice.say('Flappy Face. Go!');
+            loop();
+        };
+
+        // ─── GAME LOOP ──────────────────────────────────────────
+        function loop() {
+            if (!playing) return;
+            requestAnimationFrame(loop);
+            frame++;
+
+            // Face tracking
+            if (faceLandmarker && video.readyState >= 2) {
+                const r = faceLandmarker.detectForVideo(video, performance.now());
+                if (r.faceBlendshapes && r.faceBlendshapes.length > 0) {
+                    const bs = {};
+                    r.faceBlendshapes[0].categories.forEach(c => bs[c.categoryName] = c.score);
+                    browValue = (bs.browInnerUp || 0) + (bs.browOuterUpLeft || 0) * 0.5 + (bs.browOuterUpRight || 0) * 0.5;
+                }
+            }
+
+            // Flap detection
+            if (browValue > 0.45 && frame - lastFlap > 10) {
+                birdVY = FLAP;
+                lastFlap = frame;
+                if (typeof FX !== 'undefined') FX.tick();
+            }
+
+            // Physics
+            birdVY += GRAVITY;
+            birdY += birdVY;
+
+            // Pipes
+            if (frame % 90 === 0) {
+                const gapY = Math.random() * (H - GAP - 120) + 60;
+                pipes.push({ x: W, gapY, scored: false });
+            }
+
+            // Move pipes
+            for (let i = pipes.length - 1; i >= 0; i--) {
+                pipes[i].x -= PIPE_SPEED;
+                if (pipes[i].x + PIPE_W < 0) { pipes.splice(i, 1); continue; }
+
+                // Score
+                if (!pipes[i].scored && pipes[i].x + PIPE_W < W * 0.3) {
+                    pipes[i].scored = true;
+                    score++;
+                    hud.textContent = score;
+                    if (typeof FX !== 'undefined') FX.click();
+                    if (score === 1) guide.style.display = 'none';
+                }
+
+                // Collision
+                const bx = W * 0.3, by = birdY;
+                const px = pipes[i].x, gy = pipes[i].gapY;
+                if (bx + BIRD_R > px && bx - BIRD_R < px + PIPE_W) {
+                    if (by - BIRD_R < gy || by + BIRD_R > gy + GAP) {
+                        die(); return;
+                    }
+                }
+            }
+
+            // Floor/ceiling
+            if (birdY > H - BIRD_R || birdY < BIRD_R) { die(); return; }
+
+            // ─── DRAW ───────────────────────────────────────────
+            // Sky gradient
+            const grad = ctx.createLinearGradient(0, 0, 0, H);
+            grad.addColorStop(0, '#0f0c29');
+            grad.addColorStop(0.5, '#302b63');
+            grad.addColorStop(1, '#24243e');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+
+            // Stars
+            ctx.fillStyle = 'rgba(255,255,255,0.3)';
+            for (let i = 0; i < 60; i++) {
+                const sx = (i * 97 + frame * 0.2) % W;
+                const sy = (i * 73) % H;
+                ctx.fillRect(sx, sy, 1.5, 1.5);
+            }
+
+            // Pipes
+            pipes.forEach(p => {
+                // Top pipe
+                const topGrad = ctx.createLinearGradient(p.x, 0, p.x + PIPE_W, 0);
+                topGrad.addColorStop(0, '#00cc99'); topGrad.addColorStop(1, '#009977');
+                ctx.fillStyle = topGrad;
+                ctx.fillRect(p.x, 0, PIPE_W, p.gapY);
+                ctx.fillStyle = '#00ffcc';
+                ctx.fillRect(p.x - 4, p.gapY - 20, PIPE_W + 8, 20);
+
+                // Bottom pipe
+                ctx.fillStyle = topGrad;
+                ctx.fillRect(p.x, p.gapY + GAP, PIPE_W, H - p.gapY - GAP);
+                ctx.fillStyle = '#00ffcc';
+                ctx.fillRect(p.x - 4, p.gapY + GAP, PIPE_W + 8, 20);
+            });
+
+            // Bird
+            ctx.save();
+            ctx.translate(W * 0.3, birdY);
+            const angle = Math.min(Math.max(birdVY * 3, -30), 45) * Math.PI / 180;
+            ctx.rotate(angle);
+            ctx.font = (BIRD_R * 2.2) + 'px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🐦', 0, 0);
+            ctx.restore();
+
+            // Ground line
+            ctx.fillStyle = '#00ffcc';
+            ctx.fillRect(0, H - 3, W, 3);
+        }
+
+        function die() {
+            playing = false;
+            dead = true;
+            if (typeof FX !== 'undefined') FX.fail();
+
+            // Save
+            const prev = parseInt(localStorage.getItem('faceverse_hs_flappy') || '0');
+            const isNew = score > prev;
+            if (isNew) localStorage.setItem('faceverse_hs_flappy', score);
+
+            // Run history
+            const runs = JSON.parse(localStorage.getItem('faceverse_runs') || '[]');
+            runs.push({ mode: 'Flappy', score, date: new Date().toISOString() });
+            localStorage.setItem('faceverse_runs', JSON.stringify(runs));
+
+            document.getElementById('final-score').textContent = '🐦 Score: ' + score;
+            document.getElementById('hs-msg').textContent = isNew ? '🏆 NEW HIGH SCORE!' : 'Best: ' + prev;
+            document.getElementById('gameover-screen').classList.remove('hidden');
+
+            if (typeof Voice !== 'undefined') Voice.say('Game over. Score ' + score);
+        }
+    </script>
+</body>
+</html>

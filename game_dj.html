@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face DJ - FaceVerse</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎵</text></svg>">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Bangers&display=swap');
+        body { overflow:hidden; font-family:'Outfit',sans-serif; user-select:none; background:#000!important; margin:0; }
+        #webcam { position:fixed; inset:0; width:100vw; height:100vh; object-fit:cover; transform:scaleX(-1); z-index:0; opacity:0.25; filter:saturate(2) contrast(1.5); }
+        #mesh-overlay { position:fixed; inset:0; width:100vw; height:100vh; transform:scaleX(-1); z-index:2; pointer-events:none; }
+        .overlay { position:fixed; inset:0; background:rgba(0,0,0,0.85); display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:30; }
+        .overlay.hidden { display:none; }
+        .overlay h1 { font-size:4rem; color:#00ffcc; margin:0; text-align:center; font-family:'Bangers',cursive; }
+        .overlay p { color:#fff; font-size:1.2rem; margin:8px 0; text-align:center; max-width:600px; }
+        .overlay button { padding:14px 48px; font-size:1.8rem; font-family:'Bangers',cursive; background:#00ffcc; color:#000; border:none; border-radius:12px; cursor:pointer; margin-top:24px; transition:transform 0.1s; }
+        .overlay button:hover { transform:scale(1.05); }
+        .back-link { margin-top:24px; color:#888; font-size:0.9rem; cursor:pointer; text-decoration:underline; z-index:40; position:fixed; bottom:24px; left:24px; }
+        
+        #deck { position:fixed; bottom:0; left:0; width:100vw; height:30vh; background:linear-gradient(0deg, #111, transparent); z-index:10; display:flex; justify-content:space-around; align-items:flex-end; padding-bottom:40px; }
+        .turntable { width:200px; height:200px; border-radius:50%; background:#222; border:4px solid #333; display:flex; justify-content:center; align-items:center; position:relative; box-shadow:0 0 30px rgba(0,0,0,0.8); }
+        .turntable::after { content:''; width:40px; height:40px; background:radial-gradient(circle, #fff 10%, #444 30%, #111 100%); border-radius:50%; position:absolute; box-shadow:0 0 10px #000; }
+        .turntable::before { content:''; position:absolute; width:180px; height:180px; border-radius:50%; border:2px dashed rgba(255,255,255,0.2); pointer-events:none; }
+        .turntable.active { border-color:#00ffcc; animation:spin 1.5s linear infinite; box-shadow:0 0 50px rgba(0,255,204,0.3); }
+        @keyframes spin { 100%{transform:rotate(360deg);} }
+
+        #visualizer { position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); width:80vw; height:40vh; z-index:5; display:flex; align-items:center; justify-content:center; gap:8px; }
+        .bar { width:20px; height:10px; background:#00ffcc; border-radius:10px; transition:height 0.1s ease; opacity:0.8; }
+        
+        #controls { position:fixed; top:24px; left:50%; transform:translateX(-50%); display:flex; gap:20px; z-index:15; }
+        .control-pill { background:rgba(0,0,0,0.6); border:1px solid rgba(255,255,255,0.2); padding:10px 20px; border-radius:20px; color:#fff; font-size:0.9rem; font-weight:600; letter-spacing:1px; display:flex; align-items:center; gap:10px; }
+        .control-pill .val { color:#00ffcc; font-weight:900; font-family:monospace; font-size:1.1rem; }
+        
+        #fx-flash { position:fixed; inset:0; background:#fff; z-index:25; opacity:0; pointer-events:none; transition:opacity 0.2s; mix-blend-mode:overlay; }
+    </style>
+</head>
+<body>
+    <video id="webcam" autoplay playsinline></video>
+    <canvas id="mesh-overlay"></canvas>
+    <div id="fx-flash"></div>
+    
+    <div id="visualizer">
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
+    </div>
+
+    <div id="controls">
+        <div class="control-pill">YAW (Pan/Pitch) <span class="val" id="val-yaw">0</span></div>
+        <div class="control-pill">MOUTH (Bass Drop) <span class="val" id="val-mouth">0</span></div>
+        <div class="control-pill">BROWS (Arp Speed) <span class="val" id="val-brows">0</span></div>
+    </div>
+
+    <div id="deck">
+        <div class="turntable" id="tt-left"></div>
+        <div class="turntable" id="tt-right"></div>
+    </div>
+
+    <div class="back-link" onclick="window.location.href='game_hub.html'">← Back to Hub</div>
+
+    <div class="overlay" id="start-screen">
+        <h1>🎵 FACE DJ</h1>
+        <p>Your face is the turntable! Turn your head left/right to pan and pitch shift. Open your mouth for a massive bass drop. Raise eyebrows to trigger the hyper-arpeggiator!</p>
+        <button onclick="initGame()">DROP THE BEAT</button>
+    </div>
+
+    <script type="importmap">
+    { "imports": { "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/+esm" } }
+    </script>
+    <script src="main.js"></script>
+    <script src="audio-fx.js"></script>
+    <script src="ai-voice.js"></script>
+    <script src="capture-module.js"></script>
+
+    <script type="module">
+        import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
+
+        const video = document.getElementById('webcam');
+        const overlay = document.getElementById('mesh-overlay');
+        const overlayCtx = overlay.getContext('2d');
+        let faceLandmarker, playing = false;
+
+        function resize() {
+            overlay.width = window.innerWidth;
+            overlay.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Audio Context & Nodes
+        let audioCtx, mainGain, bassOsc, bassGain, arpOsc, arpGain;
+        let arpInterval;
+        let arpNotes = [261.63, 329.63, 392.00, 523.25]; // C E G C
+        let arpIdx = 0;
+
+        async function setup() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { width:320, height:240 } });
+            video.srcObject = stream;
+            await new Promise(r => video.onloadeddata = r);
+            const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm");
+            faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+                baseOptions: { modelAssetPath:"https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task", delegate:"GPU" },
+                runningMode:"VIDEO", numFaces:1, outputFaceBlendshapes:true
+            });
+        }
+        setup();
+
+        function initAudio() {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            mainGain = audioCtx.createGain();
+            mainGain.connect(audioCtx.destination);
+            mainGain.gain.value = 0.5;
+
+            // Bass Synth (Continuous)
+            bassOsc = audioCtx.createOscillator();
+            bassOsc.type = 'square';
+            bassOsc.frequency.value = 55; // Low A
+            bassGain = audioCtx.createGain();
+            bassGain.gain.value = 0;
+            
+            const lowpass = audioCtx.createBiquadFilter();
+            lowpass.type = 'lowpass';
+            lowpass.frequency.value = 200;
+            
+            bassOsc.connect(lowpass);
+            lowpass.connect(bassGain);
+            bassGain.connect(mainGain);
+            bassOsc.start();
+
+            // Arp Synth
+            arpOsc = audioCtx.createOscillator();
+            arpOsc.type = 'sawtooth';
+            arpGain = audioCtx.createGain();
+            arpGain.gain.value = 0;
+            
+            const delay = audioCtx.createDelay(0.5);
+            delay.delayTime.value = 0.25;
+            const feedback = audioCtx.createGain();
+            feedback.gain.value = 0.4;
+            delay.connect(feedback);
+            feedback.connect(delay);
+            
+            arpOsc.connect(arpGain);
+            arpGain.connect(mainGain);
+            arpGain.connect(delay);
+            delay.connect(mainGain);
+            arpOsc.start();
+        }
+
+        window.initGame = function() {
+            document.getElementById('start-screen').classList.add('hidden');
+            initAudio();
+            document.getElementById('tt-left').classList.add('active');
+            document.getElementById('tt-right').classList.add('active');
+            playing = true;
+            if (typeof Voice !== 'undefined') Voice.say('DJ Mode Engaged.');
+            loop();
+            runArp();
+        };
+
+        let lastJaw = 0;
+        
+        function runArp() {
+            if (!playing) return;
+            // Play note
+            arpOsc.frequency.setValueAtTime(arpNotes[arpIdx], audioCtx.currentTime);
+            arpGain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+            arpGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+            
+            arpIdx = (arpIdx + 1) % arpNotes.length;
+            
+            // Speed depends on brows
+            const speedMs = browVal > 0.4 ? 100 : 300;
+            setTimeout(runArp, speedMs);
+        }
+
+        let browVal = 0;
+        let targetBassFreq = 55;
+
+        function loop() {
+            if (!playing) return;
+            requestAnimationFrame(loop);
+
+            let jaw = 0, noseX = 0.5;
+            browVal = 0;
+
+            overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+
+            if (faceLandmarker && video.readyState >= 2) {
+                const r = faceLandmarker.detectForVideo(video, performance.now());
+                if (r.faceBlendshapes && r.faceBlendshapes.length > 0) {
+                    const bs = {};
+                    r.faceBlendshapes[0].categories.forEach(c => bs[c.categoryName] = c.score);
+                    jaw = bs.jawOpen || 0;
+                    browVal = (bs.browInnerUp || 0);
+                }
+                if (r.faceLandmarks && r.faceLandmarks.length > 0) {
+                    noseX = 1.0 - r.faceLandmarks[0][1].x;
+                    
+                    // Draw full face mesh
+                    overlayCtx.fillStyle = `hsla(${noseX * 360}, 100%, 60%, 0.6)`;
+                    r.faceLandmarks[0].forEach(pt => {
+                        overlayCtx.fillRect(pt.x * overlay.width, pt.y * overlay.height, 2, 2);
+                    });
+                }
+            }
+
+            document.getElementById('val-yaw').textContent = noseX.toFixed(2);
+            document.getElementById('val-mouth').textContent = jaw.toFixed(2);
+            document.getElementById('val-brows').textContent = browVal.toFixed(2);
+
+            // Audio Mapping
+            if (audioCtx) {
+                // Pitch based on noseX (Yaw)
+                const baseNote = 55; // A1
+                targetBassFreq = baseNote + (noseX - 0.5) * 40; 
+                bassOsc.frequency.setTargetAtTime(targetBassFreq, audioCtx.currentTime, 0.1);
+
+                // Bass drop logic
+                if (jaw > 0.5 && lastJaw <= 0.5) {
+                    // Trigger Drop
+                    document.getElementById('fx-flash').style.opacity = '1';
+                    setTimeout(() => document.getElementById('fx-flash').style.opacity = '0', 100);
+                    bassOsc.frequency.setValueAtTime(150, audioCtx.currentTime);
+                    bassOsc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.5);
+                    if (typeof FX !== 'undefined') FX.shutter(); // Add punch
+                }
+                
+                if (jaw > 0.2) {
+                    bassGain.gain.setTargetAtTime(0.4 + jaw*0.3, audioCtx.currentTime, 0.05);
+                } else {
+                    bassGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+                }
+                
+                lastJaw = jaw;
+            }
+
+            // Visualizer update
+            const bars = document.querySelectorAll('.bar');
+            bars.forEach((b, i) => {
+                const h = 20 + Math.random() * (jaw * 300 + browVal * 100);
+                b.style.height = h + 'px';
+                b.style.background = `hsl(${noseX * 360}, 100%, 50%)`;
+            });
+            document.body.style.background = `radial-gradient(circle at 50% 50%, hsl(${noseX * 360}, 50%, 10%), #000)`;
+        }
+    </script>
+</body>
+</html>

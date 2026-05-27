@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expression Chain - FaceVerse</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎭</text></svg>">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Bangers&display=swap');
+        body { overflow:hidden; font-family:'Bangers',cursive; user-select:none; background:#0d0d1a!important; margin:0; }
+        #webcam { position:fixed; bottom:16px; right:16px; width:180px; height:135px; border:3px solid #00ffcc; border-radius:12px; z-index:20; object-fit:cover; transform:scaleX(-1); }
+        #chain-display { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:10; text-align:center; }
+        #chain-emojis { font-size:4rem; letter-spacing:20px; margin-bottom:16px; }
+        #current-target { font-size:8rem; margin:16px 0; }
+        #prompt { font-size:1.6rem; color:#fff; text-shadow:0 0 15px rgba(0,255,204,0.4); }
+        #round-info { position:fixed; top:24px; left:50%; transform:translateX(-50%); z-index:15; font-size:2.5rem; color:#00ffcc; }
+        #score-display { position:fixed; top:24px; right:32px; z-index:15; font-size:2rem; color:#ffcc00; }
+        .overlay { position:fixed; inset:0; background:rgba(0,0,0,0.88); display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:30; }
+        .overlay.hidden { display:none; }
+        .overlay h1 { font-size:4rem; color:#00ffcc; margin:0; }
+        .overlay h1.red { color:#ff0055; }
+        .overlay p { color:#fff; font-size:1.3rem; margin:8px 0; text-align:center; max-width:500px; }
+        .overlay button { padding:14px 48px; font-size:1.8rem; font-family:'Bangers',cursive; background:#00ffcc; color:#000; border:none; border-radius:12px; cursor:pointer; margin-top:16px; }
+        .overlay button:hover { transform:scale(1.05); }
+        .back-link { margin-top:16px; color:#888; font-family:'Segoe UI',sans-serif; font-size:0.9rem; cursor:pointer; text-decoration:underline; }
+        .phase-show { animation: pulse 0.5s ease; }
+        @keyframes pulse { 0%{transform:scale(0.8);opacity:0} 100%{transform:scale(1);opacity:1} }
+    </style>
+</head>
+<body>
+    <video id="webcam" autoplay playsinline></video>
+    <div id="round-info">ROUND 1</div>
+    <div id="score-display">⭐ 0</div>
+    <div id="chain-display">
+        <div id="chain-emojis"></div>
+        <div id="current-target"></div>
+        <div id="prompt"></div>
+    </div>
+
+    <div class="overlay" id="start-screen">
+        <h1>🎭 EXPRESSION CHAIN</h1>
+        <p>Watch the emoji sequence, then repeat it with your face! Each round adds one more expression. How long a chain can you remember?</p>
+        <button onclick="initGame()">START</button>
+        <div class="back-link" onclick="window.location.href='game_hub.html'">← Back to Hub</div>
+    </div>
+
+    <div class="overlay hidden" id="gameover-screen">
+        <h1 class="red">CHAIN BROKEN!</h1>
+        <p class="score-big" id="final-score" style="font-size:3rem;color:#ffcc00">0</p>
+        <p id="hs-msg" style="color:#00ffcc"></p>
+        <button onclick="initGame()">RETRY</button>
+        <div class="back-link" onclick="window.location.href='game_hub.html'">← Back to Hub</div>
+    </div>
+
+    <script type="importmap">
+    { "imports": { "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/+esm" } }
+    </script>
+    <script src="main.js"></script>
+    <script src="audio-fx.js"></script>
+    <script src="ai-voice.js"></script>
+    <script src="capture-module.js"></script>
+
+    <script type="module">
+        import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
+
+        const video = document.getElementById('webcam');
+        const chainEl = document.getElementById('chain-emojis');
+        const targetEl = document.getElementById('current-target');
+        const promptEl = document.getElementById('prompt');
+        const roundEl = document.getElementById('round-info');
+        const scoreEl = document.getElementById('score-display');
+
+        const EXPRESSIONS = [
+            { emoji:'😊', name:'SMILE', check: s => (s.mouthSmileLeft||0)+(s.mouthSmileRight||0) > 0.6 },
+            { emoji:'😲', name:'SURPRISE', check: s => (s.jawOpen||0) > 0.4 && (s.browInnerUp||0) > 0.3 },
+            { emoji:'😡', name:'ANGRY', check: s => (s.browDownLeft||0)+(s.browDownRight||0) > 0.4 },
+            { emoji:'😉', name:'WINK', check: s => Math.abs((s.eyeBlinkLeft||0)-(s.eyeBlinkRight||0)) > 0.3 },
+            { emoji:'😗', name:'KISS', check: s => (s.mouthPucker||0) > 0.4 },
+            { emoji:'😔', name:'SAD', check: s => (s.mouthFrownLeft||0)+(s.mouthFrownRight||0) > 0.3 },
+        ];
+
+        let faceLandmarker, playing = false;
+        let chain = [], playerIndex = 0, round = 0, score = 0;
+        let phase = 'idle'; // 'showing' | 'playing' | 'idle'
+        let showIndex = 0, showTimer = 0;
+
+        // ─── SETUP ──────────────────────────────────────────────
+        async function setup() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video:{width:320,height:240} });
+            video.srcObject = stream;
+            await new Promise(r => video.onloadeddata = r);
+            const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm");
+            faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+                baseOptions: { modelAssetPath:"https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task", delegate:"GPU" },
+                runningMode:"VIDEO", numFaces:1, outputFaceBlendshapes:true
+            });
+        }
+        setup();
+
+        window.initGame = function() {
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('gameover-screen').classList.add('hidden');
+            chain = []; round = 0; score = 0;
+            scoreEl.textContent = '⭐ 0';
+            playing = true;
+            if (typeof Voice !== 'undefined') Voice.say('Expression Chain. Watch carefully.');
+            nextRound();
+            loop();
+        };
+
+        function nextRound() {
+            round++;
+            roundEl.textContent = 'ROUND ' + round;
+            // Add random expression to chain
+            chain.push(EXPRESSIONS[Math.floor(Math.random() * EXPRESSIONS.length)]);
+            // Show phase
+            phase = 'showing';
+            showIndex = 0;
+            showTimer = performance.now();
+            promptEl.textContent = 'WATCH...';
+            targetEl.textContent = '';
+            chainEl.textContent = chain.map(e => e.emoji).join(' ');
+        }
+
+        let lastBS = {};
+        let matchCooldown = 0;
+
+        function loop() {
+            if (!playing) return;
+            requestAnimationFrame(loop);
+            const now = performance.now();
+
+            // Face tracking
+            if (faceLandmarker && video.readyState >= 2) {
+                const r = faceLandmarker.detectForVideo(video, now);
+                if (r.faceBlendshapes && r.faceBlendshapes.length > 0) {
+                    lastBS = {};
+                    r.faceBlendshapes[0].categories.forEach(c => lastBS[c.categoryName] = c.score);
+                }
+            }
+
+            // SHOWING PHASE
+            if (phase === 'showing') {
+                if (now - showTimer > 1200) {
+                    if (showIndex < chain.length) {
+                        targetEl.textContent = chain[showIndex].emoji;
+                        targetEl.className = 'phase-show';
+                        if (typeof FX !== 'undefined') FX.tick();
+                        showIndex++;
+                        showTimer = now;
+                    } else {
+                        // Switch to playing
+                        phase = 'playing';
+                        playerIndex = 0;
+                        matchCooldown = now + 500;
+                        targetEl.textContent = chain[0].emoji;
+                        promptEl.textContent = 'YOUR TURN! Mimic: ' + chain[0].name;
+                        chainEl.textContent = chain.map((e, i) => i === 0 ? '👉' + e.emoji : e.emoji).join(' ');
+                    }
+                }
+            }
+
+            // PLAYING PHASE
+            if (phase === 'playing' && now > matchCooldown) {
+                const target = chain[playerIndex];
+                if (target.check(lastBS)) {
+                    score += round;
+                    scoreEl.textContent = '⭐ ' + score;
+                    if (typeof FX !== 'undefined') FX.click();
+                    playerIndex++;
+
+                    if (playerIndex >= chain.length) {
+                        // Round complete!
+                        phase = 'idle';
+                        promptEl.textContent = '✅ PERFECT!';
+                        targetEl.textContent = '🎉';
+                        if (typeof FX !== 'undefined') FX.success();
+                        setTimeout(nextRound, 1500);
+                    } else {
+                        targetEl.textContent = chain[playerIndex].emoji;
+                        promptEl.textContent = 'Mimic: ' + chain[playerIndex].name;
+                        chainEl.textContent = chain.map((e, i) => i === playerIndex ? '👉' + e.emoji : i < playerIndex ? '✅' : e.emoji).join(' ');
+                        matchCooldown = now + 600;
+                    }
+                }
+            }
+        }
+
+        window.failChain = function() {
+            playing = false;
+            const prev = parseInt(localStorage.getItem('faceverse_hs_chain') || '0');
+            const isNew = score > prev;
+            if (isNew) localStorage.setItem('faceverse_hs_chain', score);
+
+            const runs = JSON.parse(localStorage.getItem('faceverse_runs') || '[]');
+            runs.push({ mode: 'Chain', score, date: new Date().toISOString() });
+            localStorage.setItem('faceverse_runs', JSON.stringify(runs));
+
+            document.getElementById('final-score').textContent = '🎭 Round ' + round + ' | Score: ' + score;
+            document.getElementById('hs-msg').textContent = isNew ? '🏆 NEW HIGH SCORE!' : 'Best: ' + prev;
+            document.getElementById('gameover-screen').classList.remove('hidden');
+            if (typeof FX !== 'undefined') FX.fail();
+            if (typeof Voice !== 'undefined') Voice.say('Chain broken at round ' + round);
+        };
+    </script>
+</body>
+</html>

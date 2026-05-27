@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Head Tilt Racer - FaceVerse</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏎️</text></svg>">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Bangers&display=swap');
+        body { overflow:hidden; font-family:'Bangers',cursive; user-select:none; background:#111!important; margin:0; }
+        #game-canvas { display:block; width:100vw; height:100vh; position:absolute; top:0; left:0; z-index:5; background:#5c9; }
+        #cam-container { position:fixed; bottom:20px; left:20px; width:180px; height:135px; z-index:20; border-radius:12px; overflow:hidden; border:2px solid #00ffcc; box-shadow:0 0 15px rgba(0,255,204,0.4); }
+        #cam-container { position:fixed; bottom:20px; left:20px; width:180px; height:135px; z-index:20; border-radius:12px; overflow:hidden; border:2px solid #00ffcc; box-shadow:0 0 15px rgba(0,255,204,0.4); }
+        #webcam { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transform:scaleX(-1); }
+        #cam-overlay { position:absolute; inset:0; width:100%; height:100%; transform:scaleX(-1); }
+        .cam-label { position:absolute; top:4px; left:8px; font-family:'Segoe UI',sans-serif; font-size:0.6rem; color:#00ffcc; font-weight:bold; letter-spacing:1px; z-index:2; text-shadow:1px 1px 2px #000; background:rgba(0,0,0,0.5); padding:2px 6px; border-radius:4px; }
+        .overlay { position:fixed; inset:0; background:rgba(0,0,0,0.85); display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:30; }
+        .overlay.hidden { display:none; }
+        .overlay h1 { font-size:4rem; color:#00ffcc; margin:0; text-align:center; }
+        .overlay h1.red { color:#ff0055; }
+        .overlay p { color:#fff; font-size:1.4rem; margin:8px 0; }
+        .overlay .score-big { font-size:3rem; color:#ffcc00; }
+        .overlay button { padding:14px 48px; font-size:1.8rem; font-family:'Bangers',cursive; background:#00ffcc; color:#000; border:none; border-radius:12px; cursor:pointer; margin-top:16px; transition:transform 0.1s; }
+        .overlay button:hover { transform:scale(1.05); }
+        .level-btns { display:flex; gap:10px; margin-top:20px; }
+        .overlay button.btn-norm { background:#00ffcc; color:#000; }
+        .overlay button.btn-insane { background:#ff0055; color:#fff; }
+        .back-link { margin-top:24px; color:#888; font-family:'Segoe UI',sans-serif; font-size:0.9rem; cursor:pointer; text-decoration:underline; z-index:40; position:fixed; bottom:24px; left:50%; transform:translateX(-50%); }
+        #hud { position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:15; font-size:3rem; color:#fff; text-shadow:2px 2px #000; }
+        #guide { position:fixed; top:80px; left:50%; transform:translateX(-50%); z-index:15; font-size:1rem; color:rgba(255,255,255,0.7); font-family:'Segoe UI',sans-serif; letter-spacing:2px; text-shadow:1px 1px 2px #000; }
+        #boost-indicator { position:fixed; top:120px; left:50%; transform:translateX(-50%); z-index:15; font-size:1.5rem; color:#ff0055; display:none; text-shadow:0 0 10px #ff0055; }
+    </style>
+</head>
+<body>
+    <canvas id="game-canvas"></canvas>
+    <div id="cam-container">
+        <video id="webcam" autoplay playsinline></video>
+        <canvas id="cam-overlay" width="180" height="135"></canvas>
+        <div class="cam-label">🔴 TRACKING SENSOR</div>
+    </div>
+
+    <div id="hud">0</div>
+    <div id="guide">TILT HEAD L/R TO STEER. OPEN MOUTH TO BOOST.</div>
+    <div id="boost-indicator">🚀 BOOST ACTIVATED!</div>
+
+    <div class="overlay" id="start-screen">
+        <h1>🏎️ HEAD TILT RACER</h1>
+        <p>Dodge obstacles. Tilt your head to steer.</p>
+        <div class="level-btns">
+            <button class="btn-norm" onclick="initGame('Normal')">NORMAL MODE</button>
+            <button class="btn-insane" onclick="initGame('Insane')">INSANE MODE</button>
+        </div>
+        <div class="back-link" onclick="window.location.href='game_hub.html'">← Back to Hub</div>
+    </div>
+
+    <div class="overlay hidden" id="gameover-screen">
+        <h1 class="red">CRASHED!</h1>
+        <p class="score-big" id="final-score">0</p>
+        <p id="hs-msg" style="color:#00ffcc"></p>
+        <button onclick="initGame()">RACE AGAIN</button>
+        <div class="back-link" onclick="window.location.href='game_hub.html'">← Back to Hub</div>
+    </div>
+
+    <script type="importmap">
+    { "imports": { "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/+esm" } }
+    </script>
+    <script src="main.js"></script>
+    <script src="audio-fx.js"></script>
+    <script src="ai-voice.js"></script>
+    <script src="capture-module.js"></script>
+
+    <script type="module">
+        import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
+
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const video = document.getElementById('webcam');
+        const overlay = document.getElementById('cam-overlay');
+        const overlayCtx = overlay.getContext('2d');
+        const hud = document.getElementById('hud');
+        const boostIndicator = document.getElementById('boost-indicator');
+
+        let W, H;
+        function resize() { 
+            W = canvas.width = window.innerWidth; 
+            H = canvas.height = window.innerHeight; 
+        }
+        window.addEventListener('resize', resize); resize();
+
+        let faceLandmarker;
+        async function setup() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { width:320, height:240 } });
+            video.srcObject = stream;
+            await new Promise(r => video.onloadeddata = r);
+            const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm");
+            faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+                baseOptions: { modelAssetPath:"https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task", delegate:"GPU" },
+                runningMode:"VIDEO", numFaces:1, outputFaceBlendshapes:true
+            });
+        }
+        setup();
+
+        // ─── GAME STATE ─────────────────────────────────────────
+        let playing = false;
+        let carX = W / 2;
+        let speed = 5;
+        let baseSpeed = 5;
+        let obstacles = [];
+        let score = 0;
+        let frame = 0;
+        let laneWidth = 600; // Total road width
+
+        let currentMode = 'Normal';
+
+        window.initGame = function(mode) {
+            currentMode = mode;
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('gameover-screen').classList.add('hidden');
+            carX = W / 2;
+            baseSpeed = mode === 'Insane' ? 12 : 6;
+            speed = baseSpeed;
+            obstacles = [];
+            score = 0;
+            frame = 0;
+            playing = true;
+            hud.textContent = '0';
+            if (typeof Voice !== 'undefined') Voice.say(mode + ' Mode. Engines ready. Go!');
+            loop();
+        };
+
+        function loop() {
+            if (!playing) return;
+            requestAnimationFrame(loop);
+            frame++;
+
+            // Face Tracking
+            let noseX = 0.5; // normalized 0 to 1
+            let jawOpen = 0;
+
+            overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+
+            if (faceLandmarker && video.readyState >= 2) {
+                const r = faceLandmarker.detectForVideo(video, performance.now());
+                if (r.faceLandmarks && r.faceLandmarks.length > 0) {
+                    // nose tip is landmark 1
+                    // Since video is mirrored, we invert X
+                    noseX = 1.0 - r.faceLandmarks[0][1].x; 
+                    
+                    // Draw face mesh on overlay
+                    overlayCtx.fillStyle = '#00ffcc';
+                    r.faceLandmarks[0].forEach(pt => {
+                        overlayCtx.fillRect(pt.x * overlay.width, pt.y * overlay.height, 1, 1);
+                    });
+                    
+                    // Highlight nose
+                    const nx = r.faceLandmarks[0][1].x * overlay.width;
+                    const ny = r.faceLandmarks[0][1].y * overlay.height;
+                    overlayCtx.fillStyle = '#ff0055';
+                    overlayCtx.beginPath();
+                    overlayCtx.arc(nx, ny, 3, 0, Math.PI*2);
+                    overlayCtx.fill();
+                }
+                if (r.faceBlendshapes && r.faceBlendshapes.length > 0) {
+                    const bs = r.faceBlendshapes[0].categories;
+                    const jaw = bs.find(c => c.categoryName === 'jawOpen');
+                    jawOpen = jaw ? jaw.score : 0;
+                }
+            }
+
+            // Steer: map noseX (0.2 to 0.8) to screen width
+            const targetX = W/2 + (noseX - 0.5) * laneWidth * 2;
+            carX += (targetX - carX) * 0.15; // smooth movement
+            carX = Math.max(W/2 - laneWidth/2, Math.min(W/2 + laneWidth/2, carX));
+
+            // Boost
+            if (jawOpen > 0.4) {
+                speed = baseSpeed * 2.5;
+                boostIndicator.style.display = 'block';
+                // Add points faster
+                if (frame % 5 === 0) score += 2;
+            } else {
+                speed = baseSpeed;
+                boostIndicator.style.display = 'none';
+                if (frame % 10 === 0) score += 1;
+            }
+            hud.textContent = score;
+
+            // Spawn obstacles
+            const spawnRate = currentMode === 'Insane' ? Math.max(15, 40 - Math.floor(score/50)) : Math.max(25, 60 - Math.floor(score/50));
+            if (frame % spawnRate === 0) {
+                const ox = W/2 + (Math.random() - 0.5) * (laneWidth - 80);
+                const carTypes = ['🚙', '🚕', '🚓', '🚘'];
+                obstacles.push({ x: ox, y: -100, size: 80, type: carTypes[Math.floor(Math.random() * carTypes.length)] });
+            }
+
+            // Move and Check Collision
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].y += speed * 1.5;
+
+                if (obstacles[i].y > H + 100) {
+                    obstacles.splice(i, 1);
+                    continue;
+                }
+                
+                // Collision
+                const dx = obstacles[i].x - carX;
+                const dy = obstacles[i].y - (H - 120);
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < 60) {
+                    crash();
+                    return;
+                }
+            }
+
+            // Increase difficulty
+            if (frame % 300 === 0) {
+                baseSpeed += currentMode === 'Insane' ? 0.8 : 0.5;
+            }
+
+            draw();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, W, H);
+            
+            // Draw Grass (Background is already green from CSS, but let's reinforce it)
+            ctx.fillStyle = '#5c9';
+            ctx.fillRect(0, 0, W, H);
+
+            // Draw Road (Asphalt)
+            const roadLeft = W/2 - laneWidth/2;
+            ctx.fillStyle = '#333';
+            ctx.fillRect(roadLeft, 0, laneWidth, H);
+
+            // Yellow edge lines
+            ctx.fillStyle = '#ffcc00';
+            ctx.fillRect(roadLeft + 10, 0, 10, H);
+            ctx.fillRect(roadLeft + laneWidth - 20, 0, 10, H);
+
+            // White dashed center lines (2 dividers for 3 lanes)
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 8;
+            ctx.setLineDash([40, 40]);
+            ctx.lineDashOffset = -frame * speed * 1.5;
+            
+            ctx.beginPath();
+            ctx.moveTo(roadLeft + laneWidth/3, 0);
+            ctx.lineTo(roadLeft + laneWidth/3, H);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(roadLeft + (laneWidth/3)*2, 0);
+            ctx.lineTo(roadLeft + (laneWidth/3)*2, H);
+            ctx.stroke();
+            
+            ctx.setLineDash([]); // Reset dash
+
+            // Draw Trees/Bushes randomly on the sides based on frame to scroll them
+            ctx.font = '60px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const numBushes = Math.floor(H / 200) + 1;
+            for(let i=0; i<numBushes; i++) {
+                let y = ((i * 300 + frame * speed * 1.5) % (H + 200)) - 100;
+                ctx.fillText('🌳', roadLeft / 2, y);
+                ctx.fillText('🌲', W - (roadLeft / 2), y + 100);
+            }
+
+            // Draw Obstacles (Traffic Cars)
+            obstacles.forEach(o => {
+                ctx.font = o.size + 'px sans-serif';
+                // Use a shadow to give depth
+                ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                ctx.shadowBlur = 10;
+                ctx.shadowOffsetY = 10;
+                ctx.fillText(o.type, o.x, o.y);
+                ctx.shadowColor = 'transparent';
+            });
+
+            // Draw Player Car
+            ctx.font = '80px sans-serif';
+            ctx.shadowColor = 'rgba(0,0,0,0.5)';
+            ctx.shadowBlur = 10;
+            ctx.shadowOffsetY = 10;
+            const vibX = currentMode === 'Insane' ? (Math.random()-0.5)*10 : 0;
+            ctx.fillText('🏎️', carX + vibX, H - 120);
+            ctx.shadowColor = 'transparent';
+            
+            // Boost / Speed effects (exhaust flames)
+            if (speed > baseSpeed) {
+                ctx.fillStyle = currentMode === 'Insane' ? 'rgba(255,0,85,0.8)' : 'rgba(0,255,204,0.8)';
+                ctx.fillRect(carX - 25, H - 70, 8, 40 + Math.random()*60);
+                ctx.fillRect(carX + 17, H - 70, 8, 40 + Math.random()*60);
+            }
+        }
+
+        function crash() {
+            playing = false;
+            boostIndicator.style.display = 'none';
+            if (typeof FX !== 'undefined') FX.fail();
+            
+            const prev = parseInt(localStorage.getItem('faceverse_hs_racer') || '0');
+            const isNew = score > prev;
+            if (isNew) localStorage.setItem('faceverse_hs_racer', score);
+
+            const runs = JSON.parse(localStorage.getItem('faceverse_runs') || '[]');
+            runs.push({ mode: 'Racer', score, date: new Date().toISOString() });
+            localStorage.setItem('faceverse_runs', JSON.stringify(runs));
+
+            document.getElementById('final-score').textContent = 'SCORE: ' + score;
+            document.getElementById('hs-msg').textContent = isNew ? '🏆 NEW HIGH SCORE!' : 'Best: ' + prev;
+            document.getElementById('gameover-screen').classList.remove('hidden');
+
+            if (typeof Voice !== 'undefined') Voice.say('Crash detected. Score ' + score);
+        }
+    </script>
+</body>
+</html>

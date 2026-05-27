@@ -37,7 +37,7 @@
 
         body {
             background: var(--hub-bg);
-            overflow: hidden;
+            overflow-y: auto;
             font-family: 'Outfit', sans-serif;
             color: var(--hub-text);
             transition: background 0.3s, color 0.3s;
@@ -45,7 +45,7 @@
 
         /* ANIMATED BACKGROUND CANVAS */
         canvas {
-            position: absolute;
+            position: fixed;
             top: 0;
             left: 0;
             z-index: 0;
@@ -54,10 +54,8 @@
 
         /* MAIN CONTAINER */
         .hub-container {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            position: relative;
+            margin: 60px auto 100px auto;
             z-index: 10;
             width: 90%;
             max-width: 900px;
@@ -142,13 +140,15 @@
             color: var(--subtitle-color);
         }
 
-        /* Level Specific Hover Colors */
-        .lv1:hover h2 {
-            color: #00ffcc;
+        /* Level Specific Colors */
+        .lv1-btn:hover {
+            background: #00ffcc !important;
+            color: #000 !important;
         }
 
-        .lv2:hover h2 {
-            color: #ff0055;
+        .lv2-btn:hover {
+            background: #ff0055 !important;
+            color: #fff !important;
         }
 
         /* Shake animation for Insane Mode */
@@ -204,8 +204,8 @@
 
         /* BACK BUTTON */
         .back-btn {
-            position: absolute;
-            bottom: 30px;
+            position: fixed;
+            top: 30px;
             left: 30px;
             color: var(--subtitle-color);
             font-family: 'Outfit', sans-serif;
@@ -256,6 +256,130 @@
             .difficulty-grid {
                 grid-template-columns: 1fr;
             }
+            .stats-row { flex-direction: column; }
+            .achievements-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        /* ── STATS DASHBOARD ─────────────────────────────── */
+        .stats-row {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 32px;
+        }
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 16px 28px;
+            min-width: 120px;
+            backdrop-filter: blur(12px);
+            text-align: center;
+        }
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--subtitle-color);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+        .stat-value {
+            font-size: 2.2rem;
+            font-weight: 900;
+        }
+
+        /* ── RUN HISTORY TABLE ────────────────────────────── */
+        .history-section {
+            margin-top: 36px;
+            text-align: center;
+        }
+        .history-section h3 {
+            font-size: 0.75rem;
+            letter-spacing: 3px;
+            color: var(--subtitle-color);
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+        .run-table {
+            width: 100%;
+            max-width: 520px;
+            margin: 0 auto;
+            border-collapse: collapse;
+        }
+        .run-table th, .run-table td {
+            padding: 8px 14px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.8rem;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            text-align: center;
+        }
+        .run-table th {
+            color: var(--subtitle-color);
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            font-size: 0.65rem;
+        }
+        .run-table td {
+            color: var(--hub-text);
+        }
+        .mode-normal { color: #00ffcc; }
+        .mode-insane { color: #ff0055; }
+
+        /* ── ACHIEVEMENTS ─────────────────────────────────── */
+        .achievements-section {
+            margin-top: 36px;
+            text-align: center;
+        }
+        .achievements-section h3 {
+            font-size: 0.75rem;
+            letter-spacing: 3px;
+            color: var(--subtitle-color);
+            text-transform: uppercase;
+            margin-bottom: 16px;
+        }
+        .achievements-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            max-width: 560px;
+            margin: 0 auto;
+        }
+        .achievement {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 14px 8px;
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .achievement.locked {
+            opacity: 0.35;
+            filter: grayscale(1);
+        }
+        .achievement.unlocked {
+            border-color: rgba(0, 255, 204, 0.3);
+            box-shadow: 0 0 16px rgba(0, 255, 204, 0.1);
+        }
+        .achievement .ach-icon {
+            font-size: 1.8rem;
+            display: block;
+            margin-bottom: 6px;
+        }
+        .achievement .ach-name {
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--hub-text);
+        }
+        .achievement .ach-desc {
+            font-size: 0.55rem;
+            color: var(--subtitle-color);
+            margin-top: 3px;
         }
     </style>
 </head>
@@ -265,20 +389,48 @@
     <canvas id="bg-canvas"></canvas>
 
     <div class="hub-container">
-        <h1>MIMIC ARENA</h1>
-        <p class="subtitle">Select Your Challenge</p>
+        <h1>GAME HUB</h1>
+        <p class="subtitle">Select Your Game</p>
 
         <div class="difficulty-grid">
-            <div class="level-card lv1" onclick="window.location.href='game_lv1.html'">
-                <span class="card-icon">🧘</span>
-                <h2>NORMAL</h2>
-                <p>Standard Speed. Warmup.</p>
+            <div class="level-card" style="cursor: default;">
+                <span class="card-icon">😲</span>
+                <h2>MIMIC ARENA</h2>
+                <p>Match the facial expressions!</p>
+                <div style="display:flex; gap:10px; justify-content:center; margin-top:15px;">
+                    <button class="lv1-btn" onclick="window.location.href='game_lv1.html'" style="padding:8px 16px; border:1px solid #00ffcc; background:rgba(0,255,204,0.1); color:#00ffcc; border-radius:8px; cursor:pointer; font-family:'Outfit', sans-serif; font-weight:700; transition:0.3s; flex:1;">NORMAL</button>
+                    <button class="lv2-btn" onclick="window.location.href='game_lv2.html'" style="padding:8px 16px; border:1px solid #ff0055; background:rgba(255,0,85,0.1); color:#ff0055; border-radius:8px; cursor:pointer; font-family:'Outfit', sans-serif; font-weight:700; transition:0.3s; flex:1;">INSANE</button>
+                </div>
             </div>
 
-            <div class="level-card lv2" onclick="window.location.href='game_lv2.html'">
-                <span class="card-icon">🔥</span>
-                <h2>INSANE</h2>
-                <p>Maximum Chaos. Reflexes.</p>
+            <div class="level-card" onclick="window.location.href='game_flappy.html'">
+                <span class="card-icon">🐦</span>
+                <h2>FLAPPY FACE</h2>
+                <p>Raise eyebrows to flap!</p>
+            </div>
+
+            <div class="level-card" onclick="window.location.href='game_poker.html'">
+                <span class="card-icon">😐</span>
+                <h2>POKER FACE</h2>
+                <p>Don't react for 60 seconds.</p>
+            </div>
+
+            <div class="level-card" onclick="window.location.href='game_chain.html'">
+                <span class="card-icon">🎭</span>
+                <h2>EXPRESSION CHAIN</h2>
+                <p>Simon Says for faces.</p>
+            </div>
+
+            <div class="level-card" onclick="window.location.href='game_racer.html'">
+                <span class="card-icon">🏎️</span>
+                <h2>HEAD RACER</h2>
+                <p>Tilt to steer, open jaw to boost.</p>
+            </div>
+
+            <div class="level-card" onclick="window.location.href='game_dj.html'">
+                <span class="card-icon">🎵</span>
+                <h2>FACE DJ</h2>
+                <p>Mix tracks with your face!</p>
             </div>
         </div>
 
@@ -310,6 +462,39 @@
                 </div>
             </div>
         </div>
+
+        <!-- Stats Dashboard -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-label">Total Runs</div>
+                <div class="stat-value" id="total-runs" style="color:#00ffcc">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Avg Score</div>
+                <div class="stat-value" id="avg-score" style="color:#ffcc00">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Win Rate</div>
+                <div class="stat-value" id="win-rate" style="color:#ff8800">0%</div>
+            </div>
+        </div>
+
+        <!-- Run History -->
+        <div class="history-section">
+            <h3>Recent Runs</h3>
+            <table class="run-table">
+                <thead><tr><th>#</th><th>Mode</th><th>Score</th><th>When</th></tr></thead>
+                <tbody id="run-history-body">
+                    <tr><td colspan="4" style="color:var(--subtitle-color);opacity:0.5">No runs yet</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Achievements -->
+        <div class="achievements-section">
+            <h3>Achievements</h3>
+            <div class="achievements-grid" id="achievements-grid"></div>
+        </div>
     </div>
 
     <div class="back-btn" onclick="window.location.href='index.html'">← RETURN HOME</div>
@@ -333,10 +518,78 @@
         }
         cleanMenu();
 
+        // ─── HIGH SCORES ────────────────────────────────────────────
         const hs1 = localStorage.getItem('faceverse_hs_lv1');
         const hs2 = localStorage.getItem('faceverse_hs_lv2');
         if (hs1) document.getElementById('hs-lv1').textContent = hs1;
         if (hs2) document.getElementById('hs-lv2').textContent = hs2;
+
+        // ─── RUN HISTORY & STATS ────────────────────────────────────
+        const runs = JSON.parse(localStorage.getItem('faceverse_runs') || '[]');
+
+        // Stats
+        document.getElementById('total-runs').textContent = runs.length;
+        if (runs.length > 0) {
+            const avg = (runs.reduce((s, r) => s + r.score, 0) / runs.length).toFixed(1);
+            document.getElementById('avg-score').textContent = avg;
+            const wins = runs.filter(r => r.score >= 5).length;
+            document.getElementById('win-rate').textContent = Math.round(wins / runs.length * 100) + '%';
+        }
+
+        // Recent runs table (last 8)
+        const tbody = document.getElementById('run-history-body');
+        if (runs.length > 0) {
+            tbody.innerHTML = '';
+            const recent = runs.slice(-8).reverse();
+            recent.forEach((run, i) => {
+                const tr = document.createElement('tr');
+                const modeClass = run.mode === 'Normal' ? 'mode-normal' : 'mode-insane';
+                const ago = timeAgo(run.date);
+                tr.innerHTML = `
+                    <td>${i + 1}</td>
+                    <td class="${modeClass}">${run.mode}</td>
+                    <td style="font-weight:900">${run.score}</td>
+                    <td style="opacity:0.6">${ago}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function timeAgo(dateStr) {
+            const diff = Date.now() - new Date(dateStr).getTime();
+            const mins = Math.floor(diff / 60000);
+            if (mins < 1) return 'Just now';
+            if (mins < 60) return mins + 'm ago';
+            const hrs = Math.floor(mins / 60);
+            if (hrs < 24) return hrs + 'h ago';
+            const days = Math.floor(hrs / 24);
+            return days + 'd ago';
+        }
+
+        // ─── ACHIEVEMENTS ───────────────────────────────────────────
+        const ACHIEVEMENTS = [
+            { id: 'first_run',   icon: '🎯', name: 'First Steps',   desc: 'Complete 1 run',             check: () => runs.length >= 1 },
+            { id: 'five_runs',   icon: '🔥', name: 'Warming Up',    desc: 'Complete 5 runs',             check: () => runs.length >= 5 },
+            { id: 'ten_runs',    icon: '💪', name: 'Veteran',       desc: 'Complete 10 runs',            check: () => runs.length >= 10 },
+            { id: 'score_5',     icon: '⭐', name: 'Solid Run',     desc: 'Score 5+ in any mode',        check: () => runs.some(r => r.score >= 5) },
+            { id: 'score_10',    icon: '🏆', name: 'Champion',      desc: 'Score 10+ in any mode',       check: () => runs.some(r => r.score >= 10) },
+            { id: 'insane_try',  icon: '😈', name: 'Brave Soul',    desc: 'Try Insane mode',             check: () => runs.some(r => r.mode === 'Insane') },
+            { id: 'insane_5',    icon: '💀', name: 'Insane Master',  desc: 'Score 5+ on Insane',         check: () => runs.some(r => r.mode === 'Insane' && r.score >= 5) },
+            { id: 'both_modes',  icon: '🎭', name: 'Versatile',     desc: 'Play both modes',            check: () => runs.some(r => r.mode === 'Normal') && runs.some(r => r.mode === 'Insane') },
+        ];
+
+        const achGrid = document.getElementById('achievements-grid');
+        ACHIEVEMENTS.forEach(ach => {
+            const unlocked = ach.check();
+            const div = document.createElement('div');
+            div.className = `achievement ${unlocked ? 'unlocked' : 'locked'}`;
+            div.innerHTML = `
+                <span class="ach-icon">${ach.icon}</span>
+                <div class="ach-name">${ach.name}</div>
+                <div class="ach-desc">${ach.desc}</div>
+            `;
+            achGrid.appendChild(div);
+        });
 
         // --- OPTIMIZED BACKGROUND ANIMATION ---
         const canvas = document.getElementById('bg-canvas');
@@ -426,6 +679,10 @@
         initParticles();
         animate();
     </script>
+    <script src="nav-dock.js"></script>
+    <script src="audio-fx.js"></script>
+    <script src="ai-voice.js"></script>
+    <script src="capture-module.js"></script>
 </body>
 
 </html>

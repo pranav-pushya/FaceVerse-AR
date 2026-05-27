@@ -224,6 +224,9 @@
     </script>
 
     <script src="main.js"></script>
+    <script src="audio-fx.js"></script>
+    <script src="ai-voice.js"></script>
+    <script src="capture-module.js"></script>
 
     <script>
         // ─── START SCREEN BACKGROUND ───────────────────────────────────
@@ -536,6 +539,13 @@
             } else {
                 document.getElementById('roast-msg').innerText = ROASTS[Math.floor(Math.random() * ROASTS.length)];
             }
+            // Save run history
+            const runs = JSON.parse(localStorage.getItem('faceverse_runs') || '[]');
+            runs.push({ mode: 'Insane', score: score, date: new Date().toISOString() });
+            localStorage.setItem('faceverse_runs', JSON.stringify(runs));
+            // AI Voice + Sound FX
+            if (typeof FX !== 'undefined') FX.fail();
+            if (typeof Voice !== 'undefined') Voice.say('You died. Score: ' + score);
             playSound(100, "square");
         }
 
