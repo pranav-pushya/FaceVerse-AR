@@ -88,6 +88,19 @@
 
     <div id="visualizer-container">
         <video id="webcam-preview" autoplay playsinline></video>
+        <canvas id="landmark-canvas" style="
+            position:absolute; top:0; left:0;
+            width:160px; height:120px;
+            pointer-events:none; z-index:5;
+        "></canvas>
+        <div id="mesh-toggle" onclick="toggleMesh()" style="
+            position:absolute; top:8px; right:8px;
+            background:rgba(0,255,204,0.15);
+            border:1px solid #00ffcc; color:#00ffcc;
+            font-size:11px; font-weight:600; padding:4px 10px;
+            border-radius:6px; cursor:pointer; z-index:10;
+            letter-spacing:1px;
+        ">MESH ON</div>
         <div class="back-btn" onclick="window.location.href='index.html'">← BACK TO HOME</div>
     </div>
 
@@ -146,6 +159,7 @@
                     },
                     outputFaceBlendshapes: true,
                     outputFacialTransformationMatrixes: true,
+                    outputFaceLandmarks: true,
                     runningMode: "VIDEO",
                     numFaces: 1
                 });
@@ -236,12 +250,71 @@
             });
         }
 
+        let meshVisible = true;
+        window.toggleMesh = function() {
+            meshVisible = !meshVisible;
+            document.getElementById('mesh-toggle').textContent = meshVisible ? 'MESH ON' : 'MESH OFF';
+            document.getElementById('mesh-toggle').style.color = meshVisible ? '#00ffcc' : '#666';
+            document.getElementById('mesh-toggle').style.borderColor = meshVisible ? '#00ffcc' : '#666';
+        };
+
+        const lmCanvas = document.getElementById('landmark-canvas');
+        const lmCtx = lmCanvas.getContext('2d');
+
+        const FACE_CONNECTIONS = [
+            [10,338],[338,297],[297,332],[332,284],[284,251],[251,389],[389,356],
+            [356,454],[454,323],[323,361],[361,288],[288,397],[397,365],[365,379],
+            [379,378],[378,400],[400,377],[377,152],[152,148],[148,176],[176,149],
+            [149,150],[150,136],[136,172],[172,58],[58,132],[132,93],[93,234],
+            [234,127],[127,162],[162,21],[21,54],[54,103],[103,67],[67,109],[109,10],
+            [33,7],[7,163],[163,144],[144,145],[145,153],[153,154],[154,155],
+            [155,133],[33,246],[246,161],[161,160],[160,159],[159,158],[158,157],
+            [157,173],[173,133],[362,382],[382,381],[381,380],[380,374],[374,373],
+            [373,390],[390,249],[249,263],[362,398],[398,384],[384,385],[385,386],
+            [386,387],[387,388],[388,466],[466,263],[1,2],[2,98],[98,97],[97,2],
+            [0,267],[267,269],[269,270],[270,409],[409,291],[291,375],[375,321],
+            [321,405],[405,314],[314,17],[17,84],[84,181],[181,91],[91,146],
+            [146,61],[61,185],[185,40],[40,39],[39,37],[37,0]
+        ];
+
+        function drawLandmarks(landmarks) {
+            const w = lmCanvas.width;
+            const h = lmCanvas.height;
+            lmCtx.clearRect(0, 0, w, h);
+            if (!meshVisible) return;
+
+            lmCtx.strokeStyle = 'rgba(0,255,204,0.35)';
+            lmCtx.lineWidth = 0.8;
+            FACE_CONNECTIONS.forEach(([a, b]) => {
+                if (!landmarks[a] || !landmarks[b]) return;
+                lmCtx.beginPath();
+                lmCtx.moveTo(landmarks[a].x * w, landmarks[a].y * h);
+                lmCtx.lineTo(landmarks[b].x * w, landmarks[b].y * h);
+                lmCtx.stroke();
+            });
+
+            lmCtx.fillStyle = 'rgba(0,255,204,0.9)';
+            landmarks.forEach(pt => {
+                lmCtx.beginPath();
+                lmCtx.arc(pt.x * w, pt.y * h, 1.2, 0, Math.PI * 2);
+                lmCtx.fill();
+            });
+        }
+
         function animate() {
             requestAnimationFrame(animate);
             if (faceLandmarker && video.currentTime > 0) {
                 const results = faceLandmarker.detectForVideo(video, performance.now());
+
                 if (results.faceBlendshapes.length > 0) {
                     updateUI(results.faceBlendshapes[0].categories);
+                }
+                if (results.faceLandmarks && results.faceLandmarks.length > 0) {
+                    lmCanvas.width = video.videoWidth || 160;
+                    lmCanvas.height = video.videoHeight || 120;
+                    drawLandmarks(results.faceLandmarks[0]);
+                } else {
+                    lmCtx.clearRect(0, 0, lmCanvas.width, lmCanvas.height);
                 }
                 if (results.facialTransformationMatrixes.length > 0) {
                     const matrix = new THREE.Matrix4().fromArray(results.facialTransformationMatrixes[0].data);
@@ -251,6 +324,20 @@
             }
             renderer.render(scene, camera);
         }
+
+        new MutationObserver(() => {
+            const t = document.documentElement.getAttribute('data-theme');
+            if (faceMesh) {
+                faceMesh.material.color.setHex(t === 'light' ? 0x333333 : 0x00ffcc);
+                faceMesh.material.needsUpdate = true;
+            }
+        }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+        window.addEventListener('beforeunload', () => {
+            const v = document.getElementById('webcam-preview');
+            if (v && v.srcObject) v.srcObject.getTracks().forEach(t => t.stop());
+            if (renderer) renderer.dispose();
+        });
 
         init();
     </script>

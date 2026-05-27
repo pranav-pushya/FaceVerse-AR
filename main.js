@@ -25,9 +25,11 @@ document.addEventListener("DOMContentLoaded", () => {
     
     if (savedTheme === 'light') {
         setTheme('light');
+    } else if (savedTheme === 'dark') {
+        setTheme('dark');
     } else {
-        // Default to Dark (Black)
-        setTheme('dark'); 
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        setTheme(prefersDark ? 'dark' : 'light');
     }
 });
 
@@ -43,13 +45,20 @@ window.toggleMenu = function() {
 }
 
 window.setTheme = function(theme) {
-    // Set attribute on HTML tag (Best practice for CSS variables)
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
-    
-    // Force Close Menu after selection
+
     const sidebar = document.getElementById('sidebar');
     if(sidebar && sidebar.classList.contains('active')) {
         toggleMenu();
+    }
+}
+
+window.applyThemeToMesh = function(theme) {
+    if (typeof sphereMesh !== 'undefined' && sphereMesh) {
+        sphereMesh.material.color.setHex(theme === 'light' ? 0x333333 : 0x00ffcc);
+    }
+    if (typeof faceMesh !== 'undefined' && faceMesh) {
+        faceMesh.material.color.setHex(theme === 'light' ? 0x333333 : 0x00ffcc);
     }
 }

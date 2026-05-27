@@ -270,7 +270,8 @@
 
         window.startGame = async function() {
             const btn = document.getElementById('start-btn');
-            btn.disabled = true; btn.innerText = "LOADING CORE...";
+            btn.disabled = true; btn.innerText = "LOADING AI (~5MB)...";
+            btn.style.opacity = "0.7";
             
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -278,6 +279,7 @@
             try {
                 if(!scene) initThreeJS();
                 if(!faceLandmarker) await initAI();
+                btn.style.opacity = "1";
                 document.getElementById('start-screen').classList.add('hidden');
                 document.getElementById('game-over-screen').classList.add('hidden');
                 document.getElementById('pause-screen').classList.add('hidden');
@@ -382,7 +384,13 @@
             document.getElementById('ui-container').classList.add('hidden');
             document.getElementById('game-over-screen').classList.remove('hidden');
             document.getElementById('final-score').innerText = "Score: " + score;
-            document.getElementById('roast-msg').innerText = ROASTS[Math.floor(Math.random() * ROASTS.length)];
+            const prev = parseInt(localStorage.getItem('faceverse_hs_lv2') || '0');
+            if (score > prev) {
+                localStorage.setItem('faceverse_hs_lv2', score);
+                document.getElementById('roast-msg').innerText = '🏆 NEW HIGH SCORE!';
+            } else {
+                document.getElementById('roast-msg').innerText = ROASTS[Math.floor(Math.random() * ROASTS.length)];
+            }
             playSound(100, "square");
         }
 
@@ -432,6 +440,10 @@
         }
 
         window.addEventListener('resize', () => { camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+
+        window.addEventListener('beforeunload', () => {
+            if (typeof renderer !== 'undefined' && renderer) renderer.dispose();
+        });
     </script>
 </body>
 </html>

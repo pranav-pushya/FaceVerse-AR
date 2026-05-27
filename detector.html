@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FaceVerse Detector</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎭</text></svg>">
     <link rel="stylesheet" href="style.css">
@@ -102,10 +103,37 @@
             <h1 id="status-text">WAIT...</h1>
             <div id="confidence-wrapper"><div id="confidence-fill"></div></div>
         </div>
+        <canvas id="radar-canvas" width="240" height="240" style="
+            display:block; margin-top:20px;
+            opacity:0.9; pointer-events:none;
+        "></canvas>
+
+        <div style="margin-top:14px;">
+            <div class="sub-text" style="margin-bottom:6px">HISTORY</div>
+            <div id="emotion-history" style="
+                display:flex;gap:4px;flex-wrap:wrap;
+                max-width:240px;
+            "></div>
+        </div>
     </div>
 
     <div id="debug-values">Debug Active</div>
     <div id="back-btn" onclick="window.location.href='index.html'">← BACK</div>
+    <div id="snap-btn" onclick="takeScreenshot()" style="
+        position:absolute; bottom:30px; right:30px;
+        color:#fff; z-index:20; cursor:pointer;
+        border:1px solid rgba(255,255,255,0.3);
+        padding:10px 20px; border-radius:30px;
+        transition:0.3s; font-size:0.85rem;
+        font-weight:600; letter-spacing:1px;
+        background:rgba(255,255,255,0.05);
+        backdrop-filter:blur(5px);
+    ">📸 SNAP</div>
+    <div id="snap-flash" style="
+        position:fixed;top:0;left:0;width:100%;height:100%;
+        background:#fff;opacity:0;pointer-events:none;
+        z-index:9999;transition:opacity 0.15s;
+    "></div>
 
     <div id="guide-modal">
         <div class="modal-header" id="modal-drag-zone"><h2>EXPRESSION GUIDE</h2></div>
@@ -187,16 +215,46 @@
                 scene.add(sphereMesh);
                 scene.add(new THREE.DirectionalLight(0xffffff, 2));
 
-                const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm");
-                faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+                const calibText = document.getElementById('calib-text');
+            if (calibText) calibText.textContent = 'LOADING AI MODEL... (~5MB)';
+
+            const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm");
+
+            if (calibText) calibText.textContent = 'INITIALIZING NEURAL ENGINE...';
+            faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
                     baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`, delegate: "GPU" },
                     outputFaceBlendshapes: true, runningMode: "VIDEO", numFaces: 1
                 });
 
-                video = document.getElementById('webcam');
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            if (calibText) calibText.textContent = 'CALIBRATING NEURAL ID...';
+
+            video = document.getElementById('webcam');
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: 1280, height: 720, facingMode: 'user' } 
+                });
                 video.srcObject = stream;
-                video.addEventListener("loadeddata", animate);
+            } catch (err) {
+                const msg = err.name === 'NotAllowedError'
+                    ? '🚫 Camera access denied. Allow camera in browser settings and reload.'
+                    : err.name === 'NotFoundError'
+                    ? '📷 No camera detected on this device.'
+                    : `⚠️ Camera error: ${err.message}`;
+                const overlay = document.getElementById('calib-overlay');
+                if (overlay) overlay.innerHTML = `
+                    <div style="text-align:center;padding:3rem;color:#00ffcc">
+                        <div style="font-size:3rem;margin-bottom:1rem">📷</div>
+                        <p style="font-size:1rem;margin-bottom:1.5rem;color:#fff">${msg}</p>
+                        <button onclick="location.reload()"
+                            style="padding:.6rem 1.5rem;background:#00ffcc;color:#000;
+                                   border:none;border-radius:8px;cursor:pointer;
+                                   font-size:1rem;font-weight:bold">
+                            Retry
+                        </button>
+                    </div>`;
+                return;
+            }
+            video.addEventListener("loadeddata", animate);
                 
                 window.addEventListener('keydown', (e) => {
                     if(e.key === 'd') {
@@ -330,6 +388,96 @@
             updateUI(winner, maxScore);
         }
 
+        const EMOTION_EMOJIS = {
+            'Happy':'😁','Sad':'😔','Angry':'😡','Surprised':'😲',
+            'Wink':'😉','Kiss':'😚','Puff':'🐡','Scream':'😱',
+            'Roll Eyes':'🙄','Smirk':'😏','Cringe':'😬','Neutral':'😐'
+        };
+        const historyArr = [];
+        let lastHistoryEmotion = '';
+
+        function pushHistory(emotion) {
+            if (emotion === lastHistoryEmotion || emotion === 'Neutral') return;
+            lastHistoryEmotion = emotion;
+            historyArr.unshift(emotion);
+            if (historyArr.length > 10) historyArr.pop();
+
+            const strip = document.getElementById('emotion-history');
+            strip.innerHTML = '';
+            historyArr.forEach((em, i) => {
+                const span = document.createElement('span');
+                span.textContent = EMOTION_EMOJIS[em] || '❓';
+                span.title = em;
+                span.style.cssText = `
+                    font-size:${i === 0 ? '1.4rem' : '1rem'};
+                    opacity:${1 - i * 0.08};
+                    transition:all 0.2s;
+                    cursor:default;
+                `;
+                strip.appendChild(span);
+            });
+        }
+
+        const RADAR_EMOTIONS = ['Happy','Sad','Angry','Surprised','Wink','Kiss','Puff','Scream','Roll Eyes','Smirk','Cringe'];
+        const radarCanvas = document.getElementById('radar-canvas');
+        const radarCtx = radarCanvas.getContext('2d');
+        const RADAR_R = 90;
+        const RADAR_CX = 120;
+        const RADAR_CY = 120;
+
+        function drawRadar(scores) {
+            const n = RADAR_EMOTIONS.length;
+            radarCtx.clearRect(0, 0, 240, 240);
+
+            radarCtx.strokeStyle = 'rgba(255,255,255,0.08)';
+            radarCtx.lineWidth = 1;
+            [0.25, 0.5, 0.75, 1].forEach(r => {
+                radarCtx.beginPath();
+                for (let i = 0; i < n; i++) {
+                    const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
+                    const x = RADAR_CX + Math.cos(angle) * RADAR_R * r;
+                    const y = RADAR_CY + Math.sin(angle) * RADAR_R * r;
+                    i === 0 ? radarCtx.moveTo(x, y) : radarCtx.lineTo(x, y);
+                }
+                radarCtx.closePath();
+                radarCtx.stroke();
+            });
+
+            radarCtx.strokeStyle = 'rgba(255,255,255,0.06)';
+            for (let i = 0; i < n; i++) {
+                const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
+                radarCtx.beginPath();
+                radarCtx.moveTo(RADAR_CX, RADAR_CY);
+                radarCtx.lineTo(RADAR_CX + Math.cos(angle) * RADAR_R, RADAR_CY + Math.sin(angle) * RADAR_R);
+                radarCtx.stroke();
+            }
+
+            radarCtx.beginPath();
+            RADAR_EMOTIONS.forEach((em, i) => {
+                const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
+                const val = Math.min(1, (scores[em] || 0) * 2.5);
+                const x = RADAR_CX + Math.cos(angle) * RADAR_R * val;
+                const y = RADAR_CY + Math.sin(angle) * RADAR_R * val;
+                i === 0 ? radarCtx.moveTo(x, y) : radarCtx.lineTo(x, y);
+            });
+            radarCtx.closePath();
+            radarCtx.fillStyle = 'rgba(0,255,204,0.15)';
+            radarCtx.fill();
+            radarCtx.strokeStyle = '#00ffcc';
+            radarCtx.lineWidth = 1.5;
+            radarCtx.stroke();
+
+            radarCtx.fillStyle = '#00ffcc';
+            radarCtx.font = '9px monospace';
+            radarCtx.textAlign = 'center';
+            RADAR_EMOTIONS.forEach((em, i) => {
+                const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
+                const x = RADAR_CX + Math.cos(angle) * (RADAR_R + 14);
+                const y = RADAR_CY + Math.sin(angle) * (RADAR_R + 14) + 3;
+                radarCtx.fillText(em.toUpperCase().slice(0, 5), x, y);
+            });
+        }
+
         function updateUI(emotion, confidence) {
             const config = EMOTIONS[emotion] || EMOTIONS.Neutral;
             const textEl = document.getElementById('status-text');
@@ -339,20 +487,44 @@
             textEl.style.color = "#" + config.color.toString(16).padStart(6,'0');
 
             let displayConf = Math.min(100, Math.max(5, (confidence * 100)));
-            if(emotion === "Neutral") displayConf = 5; 
+            if(emotion === "Neutral") displayConf = 5;
 
             fillEl.style.width = displayConf + "%";
             fillEl.style.background = "#" + config.color.toString(16).padStart(6,'0');
 
             targetColor.setHex(config.color);
             targetScale = config.scale;
+
+            drawRadar(lastScores);
+            pushHistory(emotion);
         }
 
+        const noFaceIndicator = (() => {
+            const el = document.createElement('div');
+            el.style.cssText = `
+                position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+                background:rgba(255,0,0,0.15);border:2px solid #ff4444;
+                border-radius:12px;padding:.6rem 1.4rem;color:#ff4444;
+                font-size:.9rem;font-weight:600;letter-spacing:1px;
+                display:none;pointer-events:none;z-index:100;`;
+            el.textContent = '⚠ Position face in frame';
+            document.body.appendChild(el);
+            return el;
+        })();
+
+        let lastFrameTime = 0;
         function animate() {
             requestAnimationFrame(animate);
-            if (faceLandmarker && video.currentTime > 0) {
-                const r = faceLandmarker.detectForVideo(video, performance.now());
-                if (r.faceBlendshapes.length > 0) analyze(r.faceBlendshapes[0].categories);
+            const now = performance.now();
+            if (faceLandmarker && video.currentTime > 0 && now - lastFrameTime > 33) {
+                lastFrameTime = now;
+                const r = faceLandmarker.detectForVideo(video, now);
+                if (r.faceBlendshapes.length > 0) {
+                    noFaceIndicator.style.display = 'none';
+                    analyze(r.faceBlendshapes[0].categories);
+                } else {
+                    noFaceIndicator.style.display = 'block';
+                }
             }
             sphereMesh.material.color.lerp(targetColor, 0.15);
             const currentScale = sphereMesh.scale.x;
@@ -413,6 +585,63 @@
             modal.style.display = modal.style.display === 'block' ? 'none' : 'block';
             if(modal.style.display === 'block' && modal.style.left === "") modal.style.transform = "translate(-50%, -50%)";
         }
+
+        window.takeScreenshot = function() {
+            const flash = document.getElementById('snap-flash');
+            flash.style.opacity = '0.6';
+            setTimeout(() => flash.style.opacity = '0', 150);
+
+            const vid = document.getElementById('webcam');
+            const emotion = document.getElementById('status-text').innerText;
+
+            const sc = document.createElement('canvas');
+            sc.width = vid.videoWidth || 640;
+            sc.height = vid.videoHeight || 480;
+            const sctx = sc.getContext('2d');
+
+            sctx.translate(sc.width, 0);
+            sctx.scale(-1, 1);
+            sctx.drawImage(vid, 0, 0, sc.width, sc.height);
+            sctx.setTransform(1, 0, 0, 1, 0, 0);
+
+            sctx.fillStyle = 'rgba(0,0,0,0.55)';
+            sctx.fillRect(0, sc.height - 70, sc.width, 70);
+
+            sctx.font = 'bold 28px monospace';
+            sctx.fillStyle = '#00ffcc';
+            sctx.textAlign = 'left';
+            sctx.fillText('FaceVerse AI', 16, sc.height - 38);
+            sctx.font = '18px monospace';
+            sctx.fillStyle = '#ffffff';
+            sctx.textAlign = 'right';
+            sctx.fillText(emotion.toUpperCase(), sc.width - 16, sc.height - 38);
+
+            sctx.font = '12px monospace';
+            sctx.fillStyle = 'rgba(255,255,255,0.5)';
+            sctx.textAlign = 'left';
+            sctx.fillText('pranav-pushya.github.io/FaceVerse-AR', 16, sc.height - 14);
+
+            const a = document.createElement('a');
+            a.href = sc.toDataURL('image/jpeg', 0.92);
+            a.download = `faceverse_${emotion.toLowerCase()}_${Date.now()}.jpg`;
+            a.click();
+        };
+
+        window.addEventListener('beforeunload', () => {
+            if (video && video.srcObject) {
+                video.srcObject.getTracks().forEach(t => t.stop());
+            }
+            if (renderer) renderer.dispose();
+        });
+
+        document.documentElement.addEventListener && 
+        new MutationObserver(() => {
+            const t = document.documentElement.getAttribute('data-theme');
+            if (typeof sphereMesh !== 'undefined' && sphereMesh) {
+                sphereMesh.material.color.setHex(t === 'light' ? 0x333333 : 0x00ffcc);
+                sphereMesh.material.needsUpdate = true;
+            }
+        }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
         init();
     </script>

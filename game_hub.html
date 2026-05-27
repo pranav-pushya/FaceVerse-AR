@@ -6,6 +6,8 @@
     <title>FaceVerse Mimic Arena</title>
     <link rel="stylesheet" href="style.css">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎭</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;700;900&family=Permanent+Marker&display=swap" rel="stylesheet">
     <style>
         /* BASE STYLES & VARIABLES override for this page */
@@ -226,6 +228,31 @@
                 <p>Maximum Chaos. Reflexes.</p>
             </div>
         </div>
+
+        <div id="leaderboard" style="
+            margin-top:40px; text-align:center;
+            font-family:'Outfit',sans-serif;
+        ">
+            <p style="font-size:0.75rem;letter-spacing:3px;color:var(--subtitle-color);margin-bottom:16px;text-transform:uppercase">High Scores</p>
+            <div style="display:flex;gap:20px;justify-content:center;flex-wrap:wrap">
+                <div style="
+                    background:var(--card-bg);border:1px solid var(--card-border);
+                    border-radius:16px;padding:20px 32px;min-width:140px;
+                    backdrop-filter:blur(12px);
+                ">
+                    <div style="font-size:0.8rem;color:var(--subtitle-color);letter-spacing:2px;margin-bottom:8px">NORMAL</div>
+                    <div id="hs-lv1" style="font-size:2.5rem;font-weight:900;color:#00ffcc">—</div>
+                </div>
+                <div style="
+                    background:var(--card-bg);border:1px solid var(--card-border);
+                    border-radius:16px;padding:20px 32px;min-width:140px;
+                    backdrop-filter:blur(12px);
+                ">
+                    <div style="font-size:0.8rem;color:var(--subtitle-color);letter-spacing:2px;margin-bottom:8px">INSANE</div>
+                    <div id="hs-lv2" style="font-size:2.5rem;font-weight:900;color:#ff0055">—</div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="back-btn" onclick="window.location.href='index.html'">← RETURN HOME</div>
@@ -248,6 +275,11 @@
             });
         }
         cleanMenu(); 
+
+        const hs1 = localStorage.getItem('faceverse_hs_lv1');
+        const hs2 = localStorage.getItem('faceverse_hs_lv2');
+        if (hs1) document.getElementById('hs-lv1').textContent = hs1;
+        if (hs2) document.getElementById('hs-lv2').textContent = hs2;
 
         // --- OPTIMIZED BACKGROUND ANIMATION ---
         const canvas = document.getElementById('bg-canvas');

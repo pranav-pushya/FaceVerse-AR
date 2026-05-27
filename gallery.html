@@ -6,6 +6,8 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎭</text></svg>">
     
     <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;700&display=swap" rel="stylesheet">
     <style>
         /* --- VARIABLES --- */
@@ -281,13 +283,29 @@
             photos.forEach((photo, index) => {
                 const div = document.createElement('div');
                 div.className = 'gallery-item';
-                div.innerHTML = `
-                    <img src="${photo.img}" onclick="downloadImage('${photo.img}')" title="Click to Download">
-                    <div class="info-bar">
-                        <span class="timestamp">${photo.date}</span>
-                        <button class="delete-btn" onclick="askDeleteIndividual(${index})" title="Delete Photo">🗑️</button>
-                    </div>
-                `;
+
+                const img = document.createElement('img');
+                img.src = photo.img;
+                img.title = 'Click to Download';
+                img.onclick = () => downloadImage(photo.img);
+
+                const infoBar = document.createElement('div');
+                infoBar.className = 'info-bar';
+
+                const timestamp = document.createElement('span');
+                timestamp.className = 'timestamp';
+                timestamp.textContent = photo.date;
+
+                const delBtn = document.createElement('button');
+                delBtn.className = 'delete-btn';
+                delBtn.title = 'Delete Photo';
+                delBtn.textContent = '🗑️';
+                delBtn.onclick = () => askDeleteIndividual(index);
+
+                infoBar.appendChild(timestamp);
+                infoBar.appendChild(delBtn);
+                div.appendChild(img);
+                div.appendChild(infoBar);
                 grid.appendChild(div);
             });
         }
