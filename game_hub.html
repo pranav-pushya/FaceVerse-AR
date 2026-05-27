@@ -1,14 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FaceVerse Mimic Arena</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎭</text></svg>">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎭</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;700;900&family=Permanent+Marker&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;700;900&family=Permanent+Marker&display=swap"
+        rel="stylesheet">
     <style>
         /* BASE STYLES & VARIABLES override for this page */
         :root {
@@ -43,7 +46,8 @@
         /* ANIMATED BACKGROUND CANVAS */
         canvas {
             position: absolute;
-            top: 0; left: 0;
+            top: 0;
+            left: 0;
             z-index: 0;
             /* Opacity managed in JS */
         }
@@ -51,7 +55,8 @@
         /* MAIN CONTAINER */
         .hub-container {
             position: absolute;
-            top: 50%; left: 50%;
+            top: 50%;
+            left: 50%;
             transform: translate(-50%, -50%);
             z-index: 10;
             width: 90%;
@@ -69,7 +74,7 @@
             background: var(--title-gradient);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            filter: drop-shadow(0 0 20px rgba(0,0,0,0.2));
+            filter: drop-shadow(0 0 20px rgba(0, 0, 0, 0.2));
         }
 
         p.subtitle {
@@ -102,7 +107,7 @@
             position: relative;
             overflow: hidden;
             text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
         }
 
         /* HOVER EFFECTS */
@@ -117,7 +122,7 @@
             margin-bottom: 20px;
             display: block;
             transition: transform 0.4s;
-            filter: drop-shadow(0 0 10px rgba(0,0,0,0.2));
+            filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.2));
         }
 
         .level-card:hover .card-icon {
@@ -138,30 +143,70 @@
         }
 
         /* Level Specific Hover Colors */
-        .lv1:hover h2 { color: #00ffcc; }
-        .lv2:hover h2 { color: #ff0055; }
-        
+        .lv1:hover h2 {
+            color: #00ffcc;
+        }
+
+        .lv2:hover h2 {
+            color: #ff0055;
+        }
+
         /* Shake animation for Insane Mode */
-        .lv2:hover .card-icon { animation: shake 0.5s infinite; }
+        .lv2:hover .card-icon {
+            animation: shake 0.5s infinite;
+        }
 
         @keyframes shake {
-            0% { transform: translate(1px, 1px) rotate(0deg); }
-            10% { transform: translate(-1px, -2px) rotate(-1deg); }
-            20% { transform: translate(-3px, 0px) rotate(1deg); }
-            30% { transform: translate(3px, 2px) rotate(0deg); }
-            40% { transform: translate(1px, -1px) rotate(1deg); }
-            50% { transform: translate(-1px, 2px) rotate(-1deg); }
-            60% { transform: translate(-3px, 1px) rotate(0deg); }
-            70% { transform: translate(3px, 1px) rotate(-1deg); }
-            80% { transform: translate(-1px, -1px) rotate(1deg); }
-            90% { transform: translate(1px, 2px) rotate(0deg); }
-            100% { transform: translate(1px, -2px) rotate(-1deg); }
+            0% {
+                transform: translate(1px, 1px) rotate(0deg);
+            }
+
+            10% {
+                transform: translate(-1px, -2px) rotate(-1deg);
+            }
+
+            20% {
+                transform: translate(-3px, 0px) rotate(1deg);
+            }
+
+            30% {
+                transform: translate(3px, 2px) rotate(0deg);
+            }
+
+            40% {
+                transform: translate(1px, -1px) rotate(1deg);
+            }
+
+            50% {
+                transform: translate(-1px, 2px) rotate(-1deg);
+            }
+
+            60% {
+                transform: translate(-3px, 1px) rotate(0deg);
+            }
+
+            70% {
+                transform: translate(3px, 1px) rotate(-1deg);
+            }
+
+            80% {
+                transform: translate(-1px, -1px) rotate(1deg);
+            }
+
+            90% {
+                transform: translate(1px, 2px) rotate(0deg);
+            }
+
+            100% {
+                transform: translate(1px, -2px) rotate(-1deg);
+            }
         }
 
         /* BACK BUTTON */
         .back-btn {
             position: absolute;
-            bottom: 30px; left: 30px;
+            bottom: 30px;
+            left: 30px;
             color: var(--subtitle-color);
             font-family: 'Outfit', sans-serif;
             font-weight: 700;
@@ -177,6 +222,7 @@
             background: var(--card-bg);
             backdrop-filter: blur(5px);
         }
+
         .back-btn:hover {
             background: var(--accent-color);
             color: #fff;
@@ -186,7 +232,8 @@
         /* AUTHOR STAMP */
         .author-stamp {
             position: fixed;
-            bottom: 30px; right: 40px;
+            bottom: 30px;
+            right: 40px;
             z-index: 20;
             font-family: 'Permanent Marker', cursive;
             color: var(--subtitle-color);
@@ -202,11 +249,17 @@
 
         /* Responsive */
         @media (max-width: 768px) {
-            h1 { font-size: 3rem; }
-            .difficulty-grid { grid-template-columns: 1fr; }
+            h1 {
+                font-size: 3rem;
+            }
+
+            .difficulty-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
+
 <body>
 
     <canvas id="bg-canvas"></canvas>
@@ -233,14 +286,17 @@
             margin-top:40px; text-align:center;
             font-family:'Outfit',sans-serif;
         ">
-            <p style="font-size:0.75rem;letter-spacing:3px;color:var(--subtitle-color);margin-bottom:16px;text-transform:uppercase">High Scores</p>
+            <p
+                style="font-size:0.75rem;letter-spacing:3px;color:var(--subtitle-color);margin-bottom:16px;text-transform:uppercase">
+                High Scores</p>
             <div style="display:flex;gap:20px;justify-content:center;flex-wrap:wrap">
                 <div style="
                     background:var(--card-bg);border:1px solid var(--card-border);
                     border-radius:16px;padding:20px 32px;min-width:140px;
                     backdrop-filter:blur(12px);
                 ">
-                    <div style="font-size:0.8rem;color:var(--subtitle-color);letter-spacing:2px;margin-bottom:8px">NORMAL</div>
+                    <div style="font-size:0.8rem;color:var(--subtitle-color);letter-spacing:2px;margin-bottom:8px">
+                        NORMAL</div>
                     <div id="hs-lv1" style="font-size:2.5rem;font-weight:900;color:#00ffcc">—</div>
                 </div>
                 <div style="
@@ -248,7 +304,8 @@
                     border-radius:16px;padding:20px 32px;min-width:140px;
                     backdrop-filter:blur(12px);
                 ">
-                    <div style="font-size:0.8rem;color:var(--subtitle-color);letter-spacing:2px;margin-bottom:8px">INSANE</div>
+                    <div style="font-size:0.8rem;color:var(--subtitle-color);letter-spacing:2px;margin-bottom:8px">
+                        INSANE</div>
                     <div id="hs-lv2" style="font-size:2.5rem;font-weight:900;color:#ff0055">—</div>
                 </div>
             </div>
@@ -256,7 +313,7 @@
     </div>
 
     <div class="back-btn" onclick="window.location.href='index.html'">← RETURN HOME</div>
-    
+
     <div class="author-stamp">Pranav Pushya</div>
 
     <script src="main.js"></script>
@@ -265,7 +322,7 @@
         // --- Menu Cleaning ---
         function cleanMenu() {
             const sidebar = document.getElementById('sidebar');
-            if(!sidebar) { requestAnimationFrame(cleanMenu); return; }
+            if (!sidebar) { requestAnimationFrame(cleanMenu); return; }
             const elementsToRemove = ['Analyzer', 'Cheat', 'Guide', 'Close', 'DEV TOOLS'];
             Array.from(sidebar.getElementsByTagName('button')).forEach(b => {
                 if (elementsToRemove.some(text => b.innerHTML.includes(text))) b.style.display = 'none';
@@ -274,7 +331,7 @@
                 if (elementsToRemove.some(text => h.innerHTML.includes(text))) h.style.display = 'none';
             });
         }
-        cleanMenu(); 
+        cleanMenu();
 
         const hs1 = localStorage.getItem('faceverse_hs_lv1');
         const hs2 = localStorage.getItem('faceverse_hs_lv2');
@@ -305,22 +362,22 @@
             reset() {
                 this.x = Math.random() * width;
                 this.y = Math.random() * height;
-                
+
                 // WIDER SIZE RANGE: 20px to 70px for visible difference
-                this.size = Math.random() * 50 + 20; 
-                
+                this.size = Math.random() * 50 + 20;
+
                 this.emoji = faceEmojis[Math.floor(Math.random() * faceEmojis.length)];
-                
+
                 // Parallax speed based on size
-                const speedMult = this.size / 30; 
-                this.speedX = (Math.random() - 0.5) * 1.5 * speedMult; 
+                const speedMult = this.size / 30;
+                this.speedX = (Math.random() - 0.5) * 1.5 * speedMult;
                 this.speedY = (Math.random() - 0.5) * 1.5 * speedMult;
-                
+
                 this.rotation = Math.random() * Math.PI * 2;
                 this.rotSpeed = (Math.random() - 0.5) * 0.03;
-                
+
                 // Good visibility opacity
-                this.opacity = Math.random() * 0.5 + 0.3; 
+                this.opacity = Math.random() * 0.5 + 0.3;
             }
 
             update() {
@@ -340,11 +397,11 @@
                 ctx.rotate(this.rotation);
                 ctx.font = `${this.size}px serif`;
                 ctx.globalAlpha = this.opacity;
-                
+
                 // Removed heavy shadows for smooth performance
                 // Removed fillStyle override so emojis look colorful naturally
-                
-                ctx.fillText(this.emoji, -this.size/2, -this.size/2);
+
+                ctx.fillText(this.emoji, -this.size / 2, -this.size / 2);
                 ctx.restore();
             }
         }
@@ -352,7 +409,7 @@
         function initParticles() {
             particles.length = 0;
             // 35 particles is a good balance
-            for(let i = 0; i < 35; i++) {
+            for (let i = 0; i < 35; i++) {
                 particles.push(new Particle());
             }
         }
@@ -370,4 +427,5 @@
         animate();
     </script>
 </body>
+
 </html>

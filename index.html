@@ -1,511 +1,1192 @@
 <!DOCTYPE html>
 <html lang="en">
+<!--
+    ╔══════════════════════════════════════════════════════════════════╗
+    ║  FaceVerse — Scroll-Based Homepage                             ║
+    ║                                                                ║
+    ║  ARCHITECTURE OVERVIEW:                                        ║
+    ║  • 5 full-screen sections stacked vertically (scroll layout)   ║
+    ║  • Section 0 = Hero (title + animated emoji)                   ║
+    ║  • Sections 1-4 = Feature cards that animate in on scroll      ║
+    ║  • Fixed background <canvas> with floating emoji particles     ║
+    ║  • Fixed progress bar at top shows scroll position             ║
+    ║  • Theme toggle (dark/light) synced via main.js setTheme()     ║
+    ║                                                                ║
+    ║  KEY TECHNOLOGIES:                                             ║
+    ║  • CSS custom properties (--var) for theming                   ║
+    ║  • IntersectionObserver API for scroll-triggered animations    ║
+    ║  • CSS 3D transforms (perspective, rotateX/Y) for card tilt    ║
+    ║  • Canvas 2D API for background particle system                ║
+    ║  • clamp() for fluid responsive typography                     ║
+    ╚══════════════════════════════════════════════════════════════════╝
+-->
 <head>
     <meta charset="UTF-8">
+    <!-- Makes the page scale properly on mobile devices -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FaceVerse - Neural AI Suite</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎭</text></svg>">
-    
-    <link rel="stylesheet" href="style.css">
+
+    <!-- Inline SVG favicon — renders the 🎭 emoji as the browser tab icon
+         so we don't need an external .ico file -->
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎭</text></svg>">
+
+    <!-- Google Fonts: preconnect speeds up the font download
+         • Outfit — main UI font (weights 300, 700, 900)
+         • Permanent Marker — handwritten style for the author stamp -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;700;900&family=Permanent+Marker&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;700;900&family=Permanent+Marker&display=swap"
+        rel="stylesheet">
+
     <style>
-        /* --- BASE VARIABLES --- */
-        :root {
-            --bg-color: #000000;
-            --text-color: #ffffff;
-            --card-bg: rgba(255, 255, 255, 0.05); /* Dark Glass */
-            --card-border: rgba(255, 255, 255, 0.15);
-            --card-hover: rgba(255, 255, 255, 0.1);
-            --accent-color: #00ffcc; /* Cyan default */
-            --subtitle-color: rgba(255, 255, 255, 0.6);
+        /*
+         * ─── RESET & BASE ─────────────────────────────────────────
+         * Remove all default browser margins/padding so every element
+         * starts from a clean slate. border-box makes width/height
+         * include padding+border, which simplifies layout math.
+         */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
         }
 
+        /*
+         * ─── CSS CUSTOM PROPERTIES (Design Tokens) ─────────────────
+         * :root = the <html> element. Variables defined here are
+         * available everywhere via var(--name).
+         *
+         * WHY: Changing theme only requires swapping these 7 values.
+         * --bg        → page background color
+         * --text      → primary text color
+         * --sub       → secondary/muted text (descriptions, hints)
+         * --accent    → brand highlight color (buttons, glows, links)
+         * --card-bg   → translucent card background
+         * --card-br   → card border color
+         * --card-glow → glow color used in box-shadows on hover
+         */
+        :root {
+            --bg: #000000;
+            --text: #ffffff;
+            --sub: rgba(255, 255, 255, 0.55);
+            --accent: #00ffcc;
+            --card-bg: rgba(255, 255, 255, 0.04);
+            --card-br: rgba(255, 255, 255, 0.12);
+            --card-glow: rgba(0, 255, 204, 0.18);
+        }
+
+        /*
+         * LIGHT THEME OVERRIDES
+         * When <html data-theme="light"> is set (by main.js setTheme()),
+         * these values replace the dark defaults above.
+         * The accent shifts from bright cyan to a deeper green for
+         * better contrast on light backgrounds.
+         */
         [data-theme="light"] {
-            --bg-color: #f4f4f9;
-            --text-color: #1a1a1a; /* Dark text for light mode */
-            --card-bg: rgba(255, 255, 255, 0.6); /* Light Glass */
-            --card-border: rgba(0, 0, 0, 0.1);
-            --card-hover: rgba(255, 255, 255, 0.9);
-            --accent-color: #00b894;
-            --subtitle-color: #555;
+            --bg: #f0f0f5;
+            --text: #0a0a0a;
+            --sub: rgba(0, 0, 0, 0.5);
+            --accent: #00a87a;
+            --card-bg: rgba(255, 255, 255, 0.65);
+            --card-br: rgba(0, 0, 0, 0.1);
+            --card-glow: rgba(0, 168, 122, 0.15);
+        }
+
+        /* Enable smooth animated scrolling when clicking anchor links */
+        html {
+            scroll-behavior: smooth;
         }
 
         body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
+            background: var(--bg);
+            color: var(--text);
             font-family: 'Outfit', sans-serif;
-            margin: 0;
-            overflow: hidden; /* No scroll for immersive feel */
-            transition: background 0.3s ease, color 0.3s ease;
+            overflow-x: hidden;      /* Prevent horizontal scroll */
+            overflow-y: auto;        /* Allow vertical scrolling  */
+            transition: background 0.4s, color 0.4s; /* Smooth theme switch */
         }
 
-        /* ANIMATION CANVAS */
+        /*
+         * ─── BACKGROUND CANVAS ─────────────────────────────────
+         * A <canvas> element fixed behind all content.
+         * JavaScript draws floating emoji particles on it.
+         * position:fixed keeps it pinned while user scrolls.
+         * pointer-events:none makes it click-through so users
+         * can interact with content above it.
+         */
         #bg-canvas {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
+            position: fixed;
+            inset: 0;                /* Shorthand: top/right/bottom/left = 0 */
             z-index: 0;
             pointer-events: none;
+            opacity: 5;
         }
 
-        /* MAIN LAYOUT */
-        .container {
+        /*
+         * ─── THEME TOGGLE BUTTON ───────────────────────────────
+         * Fixed circle in top-right corner. Always visible.
+         * backdrop-filter:blur creates a frosted-glass effect.
+         * z-index:1000 ensures it floats above everything.
+         * On hover: rotates slightly + scales up + glows.
+         */
+        #theme-btn {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            z-index: 1000;
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;              /* Makes it a circle */
+            border: 1.5px solid var(--card-br);
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);     /* Frosted glass */
+            cursor: pointer;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.3s;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        #theme-btn:hover {
+            border-color: var(--accent);
+            box-shadow: 0 0 20px var(--card-glow);
+            transform: rotate(20deg) scale(1.1); /* Playful spin on hover */
+        }
+
+        /*
+         * ─── SCROLL PROGRESS BAR ──────────────────────────────
+         * Thin glowing bar at the very top of the viewport.
+         * Width starts at 0% and is updated by JavaScript
+         * on every scroll event to reflect how far the user
+         * has scrolled through the page (0% → 100%).
+         */
+        #progress-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent), #00ffaa);
+            z-index: 999;
+            width: 0%;                       /* JS updates this */
+            transition: width 0.1s;          /* Smooth width changes */
+            box-shadow: 0 0 8px var(--accent); /* Neon glow effect */
+        }
+
+        /*
+         * ─── SECTION BASE LAYOUT ──────────────────────────────
+         * Every <section> is a full-screen (100vh) flex container.
+         * z-index:10 puts content above the background canvas.
+         * Flexbox centers content both vertically and horizontally.
+         * Padding uses viewport-width units (6vw) for fluid spacing.
+         */
+        .section {
             position: relative;
             z-index: 10;
-            height: 100vh;
+            min-height: 100vh;
+            width: 100%;
             display: flex;
-            flex-direction: column;
-            justify-content: center;
             align-items: center;
-            text-align: center;
-            perspective: 1200px;
-            transform-style: preserve-3d;
+            justify-content: center;
+            overflow: hidden;
+            padding: 0 6vw;
         }
 
-        .hero {
-            transform-style: preserve-3d;
-            transition: transform 0.08s ease-out;
-            will-change: transform;
+        /* nth-child(even) = sections 2, 4 get a barely-visible white
+         * tint to subtly differentiate alternating sections */
+        .section:nth-child(even) {
+            background: rgba(255, 255, 255, 0.015);
         }
 
-        .features {
-            transform-style: preserve-3d;
-            will-change: transform;
+        /*
+         * ─── HERO SECTION ──────────────────────────────────────
+         * The first section the user sees.
+         * flex-direction:row puts the title on the left and
+         * the big emoji on the right (side by side).
+         * On mobile this flips to column (see @media below).
+         */
+        #hero {
+            flex-direction: row;
+            justify-content: space-between;
+            gap: 4vw;
         }
 
-        .card {
-            transform-style: preserve-3d;
-            will-change: transform;
-            transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1),
-                        background 0.4s, border-color 0.4s, box-shadow 0.4s;
+        /* Left column: title, subtitle, scroll hint */
+        .hero-left {
+            flex: 1;             /* Takes remaining space */
+            max-width: 630px;    /* Don't stretch too wide on large screens */
         }
 
-        .card::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            border-radius: 24px;
-            background: linear-gradient(
-                135deg,
-                rgba(255,255,255,0.06) 0%,
-                transparent 60%
-            );
-            pointer-events: none;
-            z-index: 1;
-        }
+        /*
+         * GRADIENT TEXT EFFECT:
+         * 1. Set a gradient as the background
+         * 2. background-clip:text clips it to the text shape
+         * 3. text-fill-color:transparent makes the text see-through
+         *    so the gradient shows through
+         * clamp(min, preferred, max) makes font size fluid across screens
+         */
 
-        .card-glow {
-            position: absolute;
-            width: 120px; height: 120px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(0,255,204,0.15), transparent 70%);
-            pointer-events: none;
-            z-index: 0;
-            transform: translate(-50%, -50%);
-            transition: opacity 0.3s;
-            opacity: 0;
-        }
-        .card:hover .card-glow { opacity: 1; }
-
-        /* TEXT ANIMATION KEYFRAMES */
-        @keyframes bounceIn {
-            0% { opacity: 0; transform: translateY(-100px); }
-            60% { opacity: 1; transform: translateY(20px); }
-            80% { transform: translateY(-10px); }
-            100% { transform: translateY(0); }
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* HERO TITLE */
-        .hero h1 {
-            font-size: 6rem;
-            margin: 0;
+        .hero-left h1 {
+            font-size: clamp(3.5rem, 7vw, 7rem);
+            font-weight: 900;
             line-height: 1;
+            letter-spacing: -3px;
             text-transform: uppercase;
-            letter-spacing: -2px;
-            
-            /* UPDATED GRADIENT: Uses --text-color variable so it adapts to light/dark mode */
-            background: linear-gradient(to right, var(--text-color), var(--accent-color));
+            background: linear-gradient(135deg, var(--text) 30%, var(--accent));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            filter: drop-shadow(0 0 30px rgba(0,255,204,0.3));
-            
-            /* ADDED ANIMATION */
-            animation: bounceIn 1.2s cubic-bezier(0.215, 0.610, 0.355, 1.000) both;
+            filter: drop-shadow(0 0 40px rgba(0, 255, 204, 0.25));
         }
 
-        .hero p {
-            font-size: 1.2rem;
-            color: var(--subtitle-color);
+        .hero-left p {
+            font-size: clamp(0.85rem, 1.5vw, 1.1rem);
+            color: var(--sub);
             letter-spacing: 4px;
-            margin-top: 10px;
             text-transform: uppercase;
-            font-weight: 700;
-            /* Subtle fade in for subtitle */
-            animation: fadeIn 1.5s ease-out forwards;
-            animation-delay: 0.5s; /* Wait for title */
-            opacity: 0; /* Start hidden */
+            font-weight: 600;
+            margin-top: 16px;
         }
 
-        /* CARDS GRID */
-        .features {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 30px;
-            margin-top: 60px;
-            width: 85%;
-            max-width: 1200px;
-            
-            /* Fade in cards */
-            animation: fadeIn 1.5s ease-out forwards;
-            animation-delay: 0.8s;
-            opacity: 0;
-        }
-
-        /* GLASS CARDS (Mimic Game Style) */
-        .card {
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 24px;
-            padding: 40px 20px;
-            cursor: pointer;
-            transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+        .hero-left .scroll-hint {
+            margin-top: 48px;
             display: flex;
-            flex-direction: column;
-            align-items: center; /* Center Horizontal */
-            justify-content: center; /* Center Vertical */
-            text-align: center;
+            align-items: center;
+            gap: 10px;
+            color: var(--sub);
+            font-size: 0.85rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            animation: bounceY 2s infinite;
+        }
+
+        .hero-left .scroll-hint::before {
+            content: '';
+            display: block;
+            width: 1px;
+            height: 40px;
+            background: linear-gradient(to bottom, transparent, var(--accent));
+        }
+
+        @keyframes bounceY {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(8px);
+            }
+        }
+
+        /* Right column: just the big floating emoji */
+        .hero-right {
+            flex: 0 0 auto;      /* Don't grow or shrink */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /*
+         * HERO EMOJI ANIMATIONS:
+         * Two animations run simultaneously:
+         * 1. float (6s) — bobs up/down with slight rotation
+         * 2. spinSlow (20s) — continuously cycles hue-rotate
+         *    on the drop-shadow, creating a color-shifting glow
+         */
+        .hero-emoji {
+            font-size: clamp(10rem, 22vw, 18rem);
+            filter: drop-shadow(0 0 60px rgba(0, 255, 204, 0.2));
+            animation: float 6s ease-in-out infinite, spinSlow 20s linear infinite;
+            user-select: none;
+            line-height: 1;
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0) rotate(0deg);
+            }
+
+            33% {
+                transform: translateY(-20px) rotate(3deg);
+            }
+
+            66% {
+                transform: translateY(10px) rotate(-2deg);
+            }
+        }
+
+        @keyframes spinSlow {
+            from {
+                filter: drop-shadow(0 0 60px rgba(0, 255, 204, 0.2)) hue-rotate(0deg);
+            }
+
+            to {
+                filter: drop-shadow(0 0 60px rgba(0, 255, 204, 0.2)) hue-rotate(360deg);
+            }
+        }
+
+        /*
+         * ─── FEATURE SECTIONS ──────────────────────────────────
+         * Each feature section has two children:
+         *   1. .feat-emoji-wrap  (big emoji)
+         *   2. .card-wrap         (clickable card)
+         *
+         * Default: emoji LEFT, card RIGHT (flex-direction: row)
+         * .emoji-right: reverses to emoji RIGHT, card LEFT
+         * This creates the alternating zigzag layout.
+         */
+        .feature-section {
+            flex-direction: row;
+            gap: 8vw;
+            padding: 80px 8vw;
+        }
+
+        /* Reverse layout: emoji on right side */
+        .feature-section.emoji-right {
+            flex-direction: row-reverse;
+        }
+
+        /*
+         * ─── SCROLL-IN EMOJI ANIMATION ─────────────────────────
+         * Emojis start invisible (opacity:0) and offset to the side.
+         * When IntersectionObserver detects the section is visible,
+         * JS adds the .visible class which transitions them to
+         * opacity:1 and transform:none.
+         *
+         * .from-right: starts 180px to the right, scaled down, tilted
+         * .from-left:  starts 180px to the left, scaled down, tilted
+         * .visible:    final resting position (centered, full size)
+         *
+         * cubic-bezier(0.23,1,0.32,1) = "ease-out back" — slightly
+         * overshoots then settles, creating a bouncy entrance.
+         */
+        .feat-emoji-wrap {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;   /* Hidden by default — JS reveals on scroll */
+            transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+
+        /* Starting position: pushed RIGHT and rotated clockwise */
+        .feat-emoji-wrap.from-right {
+            transform: translateX(180px) scale(0.7) rotate(15deg);
+        }
+
+        /* Starting position: pushed LEFT and rotated counter-clockwise */
+        .feat-emoji-wrap.from-left {
+            transform: translateX(-180px) scale(0.7) rotate(-15deg);
+        }
+
+        /* Final position after scroll triggers animation */
+        .feat-emoji-wrap.visible {
+            opacity: 1;
+            transform: translateX(0) scale(1) rotate(0deg);
+        }
+
+        .feat-emoji {
+            font-size: clamp(7rem, 16vw, 14rem);
+            filter: drop-shadow(0 0 40px rgba(0, 255, 204, 0.15));
+            user-select: none;
+            animation: floatSlow 5s ease-in-out infinite;
+            display: block;
+        }
+
+        @keyframes floatSlow {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-14px);
+            }
+        }
+
+        /*
+         * ─── 3D CARD WRAPPER ──────────────────────────────────────
+         * perspective:900px enables CSS 3D transforms on child card.
+         * Starts hidden (opacity:0, pushed down 50px) and slides up
+         * when .visible is added by IntersectionObserver.
+         * The 0.2s delay staggers it slightly after the emoji.
+         */
+        .card-wrap {
+            flex: 1;
+            max-width: 480px;
+            perspective: 900px;  /* Required for 3D rotateX/Y to work */
+            opacity: 0;
+            transform: translateY(50px);
+            transition: opacity 0.8s ease 0.2s, transform 0.8s cubic-bezier(0.23, 1, 0.32, 1) 0.2s;
+        }
+
+        .card-wrap.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /*
+         * THE CARD ITSELF:
+         * • backdrop-filter:blur(20px) = frosted-glass effect
+         * • transform-style:preserve-3d = children respect 3D space
+         * • On hover: tilts in 3D + gains stronger shadow + border glows
+         * • inset shadow at top creates a subtle "inner light" edge
+         */
+        .feat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-br);
+            border-radius: 28px;
+            padding: 52px 44px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            cursor: pointer;
             position: relative;
             overflow: hidden;
+            transform-style: preserve-3d;
+            transition: transform 0.2s ease, box-shadow 0.3s ease;
+            box-shadow:
+                0 20px 60px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08);
         }
 
-        .card:hover {
-            transform: translateY(-10px) scale(1.02);
-            background: var(--card-hover);
-            border-color: var(--accent-color);
-            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        /*
+         * SHIMMER EFFECT (::before pseudo-element):
+         * A diagonal band of faint white sits off-screen (left:-60%).
+         * On hover it slides across to left:120%, creating a
+         * "light sweeping across the card" effect.
+         * skewX(-15deg) tilts the band diagonally.
+         */
+        .feat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -60%;
+            width: 40%;
+            height: 100%;
+            background: linear-gradient(105deg,
+                    transparent 40%,
+                    rgba(255, 255, 255, 0.06) 50%,
+                    transparent 60%);
+            transform: skewX(-15deg);
+            transition: left 0.6s ease;
+            pointer-events: none;
         }
 
-        .icon {
-            font-size: 4rem;
+        .feat-card:hover::before {
+            left: 120%;          /* Sweeps to the right on hover */
+        }
+
+        /*
+         * TOP ACCENT LINE (::after pseudo-element):
+         * An invisible horizontal gradient line at the top.
+         * Fades in on hover to emphasize the card edge.
+         */
+        .feat-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .feat-card:hover::after {
+            opacity: 1;
+        }
+
+        .feat-card:hover {
+            transform: rotateX(4deg) rotateY(-4deg) translateZ(12px);
+            box-shadow:
+                0 30px 80px rgba(0, 0, 0, 0.4),
+                0 0 40px var(--card-glow),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            border-color: var(--accent);
+        }
+
+        /* Card number label — small accent-colored tag like "01 — Detection" */
+        .card-num {
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            color: var(--accent);
             margin-bottom: 20px;
-            filter: drop-shadow(0 0 10px rgba(255,255,255,0.2));
+            opacity: 0.8;
+        }
+
+        /* Card emoji icon — scales up + rotates on card hover for interactivity */
+        .card-icon-label {
+            font-size: 3.2rem;
+            margin-bottom: 16px;
+            display: block;
             transition: transform 0.3s;
         }
 
-        .card:hover .icon {
-            transform: scale(1.2) rotate(5deg);
+        .feat-card:hover .card-icon-label {
+            transform: scale(1.15) rotate(5deg);
         }
 
-        .card h3 {
-            font-size: 1.8rem;
-            margin: 0;
-            font-weight: 800;
+        .card-title {
+            font-size: clamp(1.8rem, 3vw, 2.6rem);
+            font-weight: 900;
             text-transform: uppercase;
-            color: var(--text-color);
+            color: var(--text);
+            letter-spacing: -1px;
+            margin-bottom: 12px;
         }
 
-        .card p {
+        .card-desc {
+            font-size: 0.95rem;
+            color: var(--sub);
+            line-height: 1.6;
+            margin-bottom: 32px;
+        }
+
+        /*
+         * CTA (Call-To-Action) BUTTON:
+         * Pill-shaped (border-radius:50px), accent-colored.
+         * Lifts up on hover (-3px) with stronger glow shadow.
+         * The .arrow span inside slides right on hover.
+         */
+        .card-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 28px;
+            background: var(--accent);
+            color: #000;
+            font-weight: 800;
             font-size: 0.9rem;
-            color: var(--subtitle-color);
-            margin-top: 10px;
-            line-height: 1.4;
-            max-width: 80%;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            border-radius: 50px;     /* Pill shape */
+            border: none;
+            cursor: pointer;
+            transition: 0.25s;
+            font-family: 'Outfit', sans-serif;
+            box-shadow: 0 4px 20px var(--card-glow);
         }
 
-        /* STAMP */
+        .card-cta:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 30px var(--card-glow);
+            filter: brightness(1.1);
+        }
+
+        .card-cta .arrow {
+            display: inline-block;
+            transition: transform 0.2s;
+        }
+
+        .card-cta:hover .arrow {
+            transform: translateX(5px);
+        }
+
+        /*
+         * DANGER VARIANT (for the Analyzer "dev mode" card):
+         * Outlined style instead of filled — red border with
+         * transparent background. Fills red on hover.
+         */
+        .card-cta.danger {
+            background: transparent;
+            color: #ff0055;
+            border: 2px solid #ff0055;
+            box-shadow: 0 4px 20px rgba(255, 0, 85, 0.2);
+        }
+
+        .card-cta.danger:hover {
+            background: #ff0055;     /* Fills with red on hover */
+            color: #fff;
+            box-shadow: 0 8px 30px rgba(255, 0, 85, 0.4);
+        }
+
+        /* Horizontal gradient line between sections for visual separation */
+        .sect-divider {
+            position: absolute;
+            bottom: 0;
+            left: 10%;
+            width: 80%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--card-br), transparent);
+        }
+
+        /* Fixed watermark in bottom-left corner — uses handwritten font */
         .author-stamp {
             position: fixed;
-            bottom: 30px; right: 40px;
-            z-index: 20;
+            bottom: 24px;
+            left: 24px;
+            z-index: 100;
             font-family: 'Permanent Marker', cursive;
-            color: var(--subtitle-color);
-            font-size: 1.2rem;
-            transform: rotate(-5deg);
-            border: 2px solid var(--subtitle-color);
-            padding: 5px 15px;
+            color: var(--sub);
+            font-size: 1rem;
+            transform: rotate(-4deg);
+            border: 2px solid var(--card-br);
+            padding: 4px 14px;
             border-radius: 5px;
             pointer-events: none;
             opacity: 0.5;
         }
 
-        /* RESPONSIVE */
-        @media (max-width: 1024px) {
-            .features { grid-template-columns: 1fr; max-width: 400px; overflow-y: auto; padding-bottom: 100px; }
-            .hero h1 { font-size: 4rem; }
-            .container { height: auto; padding-top: 100px; }
+        /* ─── HERO BADGE (small pill above title) ───────────────── */
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 16px;
+            border-radius: 50px;
+            border: 1px solid var(--card-br);
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 20px;
+            animation: fadeSlideIn 1s ease 0.2s both;
         }
-        
-        /* MENU BUTTON OVERRIDE */
-        .menu-btn-custom {
-            width: 100%;
-            padding: 12px;
-            margin-top: 10px;
+        .hero-badge .dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
+            animation: pulse-dot 2s infinite;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--accent); }
+            50% { opacity: 0.6; box-shadow: 0 0 0 6px transparent; }
+        }
+        @keyframes fadeSlideIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ─── HERO STATS ROW ────────────────────────────────────── */
+        .hero-stats {
+            display: flex;
+            gap: 32px;
+            margin-top: 32px;
+            animation: fadeSlideIn 1s ease 0.5s both;
+        }
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+        }
+        .stat-value {
+            font-size: 1.6rem;
+            font-weight: 900;
+            color: var(--accent);
+            letter-spacing: -1px;
+        }
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--sub);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-top: 2px;
+        }
+
+        /* ─── TECH PILLS (inside cards) ─────────────────────────── */
+        .tech-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 24px;
+        }
+        .tech-pill {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            border: 1px solid var(--card-br);
+            color: var(--sub);
             background: transparent;
-            border: 1px solid var(--accent-color);
-            color: var(--accent-color);
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: bold;
-            text-align: left;
-            display: flex; align-items: center; gap: 10px;
-            transition: 0.2s;
+            transition: 0.3s;
         }
-        .menu-btn-custom:hover { background: var(--accent-color); color: #000; }
+        .feat-card:hover .tech-pill {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* ─── SIDE NAV DOTS ─────────────────────────────────────── */
+        .side-nav {
+            position: fixed;
+            right: 28px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 500;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .side-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            border: 2px solid var(--card-br);
+            background: transparent;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .side-dot:hover,
+        .side-dot.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            box-shadow: 0 0 10px var(--card-glow);
+            transform: scale(1.3);
+        }
+
+        /* ─── FOOTER ────────────────────────────────────────────── */
+        .footer {
+            position: relative;
+            z-index: 10;
+            text-align: center;
+            padding: 60px 6vw;
+            border-top: 1px solid var(--card-br);
+        }
+        .footer p {
+            color: var(--sub);
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+        }
+        .footer .footer-brand {
+            font-weight: 900;
+            font-size: 1.1rem;
+            color: var(--text);
+            margin-bottom: 8px;
+        }
+
+        /* ─── ANIMATED CARD TOP BORDER ──────────────────────────── */
+        .feat-card .card-top-line {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            opacity: 0;
+            transition: opacity 0.4s;
+        }
+        .feat-card:hover .card-top-line { opacity: 1; }
+
+        /* ─── RESPONSIVE ────────────────────────────────────────── */
+        @media (max-width: 768px) {
+            #hero {
+                flex-direction: column;
+                text-align: center;
+                padding: 80px 6vw 40px;
+            }
+            .hero-right { order: -1; }
+            .hero-emoji { font-size: clamp(6rem, 40vw, 10rem); }
+            .hero-stats { justify-content: center; }
+            .feature-section,
+            .feature-section.emoji-right {
+                flex-direction: column !important;
+                text-align: center;
+                padding: 60px 6vw;
+                gap: 30px;
+            }
+            .feat-emoji { font-size: clamp(5rem, 30vw, 8rem); }
+            .card-wrap { max-width: 100%; }
+            .side-nav { display: none; }
+        }
     </style>
 </head>
+
 <body>
 
+    <!-- Progress bar -->
+    <div id="progress-bar"></div>
+
+    <!-- Theme toggle -->
+    <button id="theme-btn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+
+    <!-- Background canvas -->
     <canvas id="bg-canvas"></canvas>
 
-    <div class="container">
-        <div class="hero">
-            <h1>FaceVerse</h1>
-            <p>Advanced Neural Expressions Suite</p>
-        </div>
-
-        <div class="features">
-            <div class="card" onclick="window.location.href='detector.html'">
-                <div class="card-glow"></div>
-                <div class="icon">🧐</div>
-                <h3>Detector</h3>
-                <p>Real-time Emotion AI Analysis with 3D Visualization.</p>
-            </div>
-
-            <div class="card" onclick="window.location.href='game_hub.html'">
-                <div class="card-glow"></div>
-                <div class="icon">🎮</div>
-                <h3>Mimic Game</h3>
-                <p>Test your reflexes in the Ultimate Face Challenge.</p>
-            </div>
-
-            <div class="card" onclick="window.location.href='filters.html'">
-                <div class="card-glow"></div>
-                <div class="icon">✨</div>
-                <h3>AR Filters</h3>
-                <p>Procedural Face Masks & Particle Effects.</p>
-            </div>
-        </div>
-    </div>
-
+    <!-- Author stamp -->
     <div class="author-stamp">Pranav Pushya</div>
 
-    <script src="main.js"></script>
+    <!-- ══════════════════════════════════════════════
+     SECTION 0 — HERO
+══════════════════════════════════════════════ -->
+    <!-- Side navigation dots -->
+    <nav class="side-nav">
+        <div class="side-dot active" onclick="document.getElementById('hero').scrollIntoView({behavior:'smooth'})" title="Home"></div>
+        <div class="side-dot" onclick="document.getElementById('s-detector').scrollIntoView({behavior:'smooth'})" title="Detector"></div>
+        <div class="side-dot" onclick="document.getElementById('s-game').scrollIntoView({behavior:'smooth'})" title="Game"></div>
+        <div class="side-dot" onclick="document.getElementById('s-filters').scrollIntoView({behavior:'smooth'})" title="Filters"></div>
+        <div class="side-dot" onclick="document.getElementById('s-analyzer').scrollIntoView({behavior:'smooth'})" title="Analyzer"></div>
+    </nav>
 
-    <script>
-        // --- 1. CUSTOM MENU LOGIC ---
-        function setupHomeMenu() {
-            const sidebar = document.getElementById('sidebar');
-            if(!sidebar) { requestAnimationFrame(setupHomeMenu); return; }
-
-            // Clean everything first & Center Title (No X button)
-            sidebar.innerHTML = `
-                <div style="margin-bottom:20px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px;">
-                    <h2 style="margin:0; color:var(--accent-color); letter-spacing: 2px;">MENU</h2>
+    <section class="section" id="hero">
+        <div class="hero-left">
+            <div class="hero-badge"><span class="dot"></span> Live AI Engine</div>
+            <h1>FaceVerse</h1>
+            <p>Advanced Neural Expressions Suite</p>
+            <div class="hero-stats">
+                <div class="stat-item">
+                    <span class="stat-value">478</span>
+                    <span class="stat-label">Landmarks</span>
                 </div>
-                <h3 style="font-size:0.8rem; color:#666; margin-bottom:10px;">THEME</h3>
-            `;
+                <div class="stat-item">
+                    <span class="stat-value">52</span>
+                    <span class="stat-label">Blendshapes</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value">15</span>
+                    <span class="stat-label">AR Filters</span>
+                </div>
+            </div>
+            <div class="scroll-hint">Scroll to explore</div>
+        </div>
+        <div class="hero-right">
+            <span class="hero-emoji">🎭</span>
+        </div>
+    </section>
 
-            // Add Light/Dark Buttons
-            const lightBtn = document.createElement('button');
-            lightBtn.className = 'menu-btn-custom';
-            lightBtn.innerHTML = '☀️ Light Mode';
-            lightBtn.onclick = () => { setTheme('light'); toggleMenu(); };
-            
-            const darkBtn = document.createElement('button');
-            darkBtn.className = 'menu-btn-custom';
-            darkBtn.innerHTML = '🌙 Dark Mode';
-            darkBtn.onclick = () => { setTheme('dark'); toggleMenu(); };
+    <section class="section feature-section emoji-right" id="s-detector">
+        <div class="feat-emoji-wrap from-right" data-dir="right">
+            <span class="feat-emoji">🧐</span>
+        </div>
+        <div class="card-wrap">
+            <div class="feat-card" onclick="window.location.href='detector.html'">
+                <div class="card-num">01 — Detection</div>
+                <span class="card-icon-label">🧠</span>
+                <div class="card-title">Detector</div>
+                <div class="card-desc">
+                    Real-time emotion AI with 3D face visualization.
+                    52 blendshapes. 478 landmarks. All in your browser.
+                </div>
+                <div class="tech-pills">
+                    <span class="tech-pill">MediaPipe</span>
+                    <span class="tech-pill">WebGL</span>
+                    <span class="tech-pill">Real-time</span>
+                </div>
+                <button class="card-cta">
+                    Launch <span class="arrow">→</span>
+                </button>
+            </div>
+        </div>
+        <div class="sect-divider"></div>
+    </section>
 
-            // Powerful Version Button (Links to Analyzer)
-            const powerBtn = document.createElement('button');
-            powerBtn.className = 'menu-btn-custom';
-            powerBtn.style.borderColor = '#ff0055';
-            powerBtn.style.color = '#ff0055';
-            powerBtn.innerHTML = '⚡ Powerful Version';
-            powerBtn.onclick = () => { 
-                window.location.href = 'analyzer.html'; // Fixed Link
-            };
+    <!-- ══════════════════════════════════════════════
+     SECTION 2 — MIMIC GAME
+     Emoji: from left → slides to right
+     Card: on left
+══════════════════════════════════════════════ -->
+    <section class="section feature-section" id="s-game">
+        <div class="feat-emoji-wrap from-left" data-dir="left">
+            <span class="feat-emoji">🎮</span>
+        </div>
+        <div class="card-wrap">
+            <div class="feat-card" onclick="window.location.href='game_hub.html'">
+                <div class="card-num">02 — Gaming</div>
+                <span class="card-icon-label">🏆</span>
+                <div class="card-title">Mimic Game</div>
+                <div class="card-desc">
+                    Mimic expressions in real-time. Normal &amp; Insane modes.
+                    Beat the clock — your face is the controller.
+                </div>
+                <div class="tech-pills">
+                    <span class="tech-pill">2 Levels</span>
+                    <span class="tech-pill">Leaderboard</span>
+                    <span class="tech-pill">Audio FX</span>
+                </div>
+                <button class="card-cta">
+                    Play Now <span class="arrow">→</span>
+                </button>
+            </div>
+        </div>
+        <div class="sect-divider"></div>
+    </section>
 
-            // Append
-            sidebar.appendChild(lightBtn);
-            sidebar.appendChild(darkBtn);
-            
-            const div = document.createElement('div');
-            div.style.marginTop = "20px";
-            div.innerHTML = '<h3 style="font-size:0.8rem; color:#666; margin-bottom:10px;">EXTRAS</h3>';
-            sidebar.appendChild(div);
-            sidebar.appendChild(powerBtn);
-        }
-        
-        (function waitForSidebar() {
-            if (document.getElementById('sidebar')) {
-                setupHomeMenu();
-            } else {
-                requestAnimationFrame(waitForSidebar);
-            }
+    <!-- ══════════════════════════════════════════════
+     SECTION 3 — AR FILTERS
+     Emoji: from right → slides to left
+     Card: on right
+══════════════════════════════════════════════ -->
+    <section class="section feature-section emoji-right" id="s-filters">
+        <div class="feat-emoji-wrap from-right" data-dir="right">
+            <span class="feat-emoji">✨</span>
+        </div>
+        <div class="card-wrap">
+            <div class="feat-card" onclick="window.location.href='filters.html'">
+                <div class="card-num">03 — AR</div>
+                <span class="card-icon-label">🎭</span>
+                <div class="card-title">AR Filters</div>
+                <div class="card-desc">
+                    15 procedural face filters. Iron HUD, Neon, Glitch,
+                    Fire, Alien and more. Snap &amp; save photos.
+                </div>
+                <div class="tech-pills">
+                    <span class="tech-pill">Canvas 2D</span>
+                    <span class="tech-pill">3D Shading</span>
+                    <span class="tech-pill">Gallery</span>
+                </div>
+                <button class="card-cta">
+                    Open AR <span class="arrow">→</span>
+                </button>
+            </div>
+        </div>
+        <div class="sect-divider"></div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════
+     SECTION 4 — POWERFUL VERSION
+     Emoji: from left → slides to right
+     Card: on left
+══════════════════════════════════════════════ -->
+    <section class="section feature-section" id="s-analyzer">
+        <div class="feat-emoji-wrap from-left" data-dir="left">
+            <span class="feat-emoji">⚡</span>
+        </div>
+        <div class="card-wrap">
+            <div class="feat-card" onclick="window.location.href='analyzer.html'">
+                <div class="card-num">04 — Dev Mode</div>
+                <span class="card-icon-label">🔬</span>
+                <div class="card-title">Powerful Version</div>
+                <div class="card-desc">
+                    Raw 52-point blendshape visualizer. 4×4 transformation
+                    matrix. Full diagnostic dashboard for developers.
+                </div>
+                <div class="tech-pills">
+                    <span class="tech-pill">Matrix 4×4</span>
+                    <span class="tech-pill">478 Points</span>
+                    <span class="tech-pill">Dev Tools</span>
+                </div>
+                <button class="card-cta danger">
+                    ☰ Open Analyzer <span class="arrow">→</span>
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p class="footer-brand">FaceVerse AI Suite</p>
+        <p>Built with MediaPipe · Canvas 2D · Three.js · WebGL</p>
+        <p style="margin-top:8px;opacity:0.5;">© 2026 Pranav Pushya</p>
+    </footer>
+
+    <script src="main.js"></script>
+    <script>
+        // ═══════════════════════════════════════════════════════════
+        // THEME TOGGLE
+        // ═══════════════════════════════════════════════════════════
+        // setTheme() is defined in main.js — it sets the
+        // data-theme attribute on <html> and saves to localStorage.
+        // This function is called by the #theme-btn onclick.
+        window.toggleTheme = function () {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'light' ? 'dark' : 'light';
+            setTheme(next);  // from main.js — applies CSS variable swap
+            // Update button icon: show moon in light mode, sun in dark
+            document.getElementById('theme-btn').textContent = next === 'light' ? '🌙' : '☀️';
+        };
+
+        // IIFE (Immediately Invoked Function Expression):
+        // Runs once on page load to set the correct theme
+        // based on: saved preference → OS preference → default dark
+        (function () {
+            const saved = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const theme = saved || (prefersDark ? 'dark' : 'light');
+            setTheme(theme);
+            document.getElementById('theme-btn').textContent = theme === 'light' ? '🌙' : '☀️';
         })();
 
+        // ═══════════════════════════════════════════════════════════
+        // SCROLL PROGRESS BAR
+        // ═══════════════════════════════════════════════════════════
+        // On every scroll event, calculate how far the user has
+        // scrolled as a percentage and set #progress-bar width.
+        // scrollHeight = total page height (including off-screen)
+        // innerHeight  = visible viewport height
+        // { passive: true } = tells browser this won't call
+        // preventDefault(), so scrolling stays smooth.
+        const progressBar = document.getElementById('progress-bar');
+        window.addEventListener('scroll', () => {
+            const scrolled = window.scrollY;                                    // How far scrolled
+            const total = document.documentElement.scrollHeight - window.innerHeight; // Max scroll
+            progressBar.style.width = (scrolled / total * 100) + '%';           // Set bar width
+        }, { passive: true });
 
-        // ─── BACKGROUND + PARALLAX ───────────────────────────────────────
+        // ═══════════════════════════════════════════════════════════
+        // SIDE NAV DOT TRACKING
+        // ═══════════════════════════════════════════════════════════
+        // Highlights the correct side-nav dot based on which section
+        // is currently in the viewport.
+        const sideDots = document.querySelectorAll('.side-dot');
+        const allSections = ['hero', 's-detector', 's-game', 's-filters', 's-analyzer'];
+        const sectionObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (!entry.isIntersecting) return;
+                const idx = allSections.indexOf(entry.target.id);
+                sideDots.forEach((d, i) => d.classList.toggle('active', i === idx));
+            });
+        }, { threshold: 0.4 });
+        allSections.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) sectionObserver.observe(el);
+        });
 
+        // ═══════════════════════════════════════════════════════════
+        // SCROLL-TRIGGERED ANIMATIONS (IntersectionObserver)
+        // ═══════════════════════════════════════════════════════════
+        // IntersectionObserver watches each .feature-section.
+        // When 25% of a section enters the viewport (threshold:0.25),
+        // the callback fires and adds .visible to the emoji + card,
+        // which triggers the CSS transitions defined above.
+        //
+        // Double requestAnimationFrame ensures the browser has
+        // painted the initial (hidden) state before applying .visible,
+        // preventing the animation from being skipped.
+        //
+        // io.unobserve() stops watching after first trigger,
+        // so the animation only plays once (no re-hiding on scroll up).
+        const io = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (!entry.isIntersecting) return; // Skip if scrolling OUT
+
+                const section = entry.target;
+
+                // Step 1: Animate the big emoji (slides in from left/right)
+                const emojiWrap = section.querySelector('.feat-emoji-wrap');
+                if (emojiWrap) {
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                            emojiWrap.classList.add('visible');
+                        });
+                    });
+                }
+
+                // Step 2: Animate the card (fades up, 150ms delay for stagger)
+                const cardWrap = section.querySelector('.card-wrap');
+                if (cardWrap) {
+                    setTimeout(() => cardWrap.classList.add('visible'), 150);
+                }
+
+                io.unobserve(section); // Only animate once
+            });
+        }, {
+            threshold: 0.25  // Trigger when 25% of section is visible
+        });
+
+        // Start observing all 4 feature sections
+        document.querySelectorAll('.feature-section').forEach(s => io.observe(s));
+
+        // ═══════════════════════════════════════════════════════════
+        // 3D TILT EFFECT ON CARDS
+        // ═══════════════════════════════════════════════════════════
+        // On mousemove: calculate how far the cursor is from the
+        // card center, then apply rotateX/Y proportionally.
+        // rx = vertical tilt (pitch), ry = horizontal tilt (yaw).
+        // *10 controls intensity (max ±10 degrees).
+        // On mouseleave: reset transform so card snaps back flat.
+        document.querySelectorAll('.feat-card').forEach(card => {
+            card.addEventListener('mousemove', e => {
+                const r = card.getBoundingClientRect();
+                const cx = r.left + r.width / 2;
+                const cy = r.top + r.height / 2;
+                const rx = ((e.clientY - cy) / r.height) * 10;
+                const ry = ((e.clientX - cx) / r.width) * -10;
+                card.style.transform =
+                    `rotateX(${rx}deg) rotateY(${ry}deg) translateZ(14px)`;
+            });
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = '';
+            });
+        });
+
+        // ═══════════════════════════════════════════════════════════
+        // BACKGROUND AMBIENT PARTICLE SYSTEM
+        // ═══════════════════════════════════════════════════════════
+        // Draws 35 semi-transparent emoji particles on a fixed
+        // <canvas> behind all content. They drift upward slowly
+        // and wrap around screen edges.
+        //
+        // Each particle (Part class) has:
+        //   x, y    — position
+        //   vx, vy  — velocity (vy is negative = moves UP)
+        //   sz      — font size in pixels (12-44px)
+        //   sp      — spin speed (radians per frame)
+        //   a       — current rotation angle
+        //   op      — opacity (0.04-0.22, very faint)
+        //   e       — the emoji character to draw
+        //
+        // When a particle drifts off the top (y < -80), it
+        // resets to the bottom (y = h + 80) with new random values.
         const canvas = document.getElementById('bg-canvas');
-        const ctx = canvas.getContext('2d');
-        let w, h;
+        const ctx = canvas.getContext('2d'); // 2D drawing context
+        let w, h; // Canvas dimensions (updated on resize)
 
-        const emojis = ['🧐','😎','🤓','🤯','🤠','🤡','👻','👽','🤖','🎃','😺','🐵','🤔','🤫','🤭'];
-        const particles = [];
+        const emojis = ['🧐', '😎', '🤓', '🤯', '🤡', '👻', '👽', '🤖', '🎃', '🤔', '🤫', '🎭', '⚡', '✨', '🎮'];
+        const parts = []; // Array of all active particles
 
-        // Depth layers — 3 layers with different speeds for parallax
-        const LAYERS = [
-            { count: 8,  sizeRange: [50, 70], speedMult: 0.15, opacity: [0.15, 0.25], zDepth: 0.2 },
-            { count: 12, sizeRange: [28, 45], speedMult: 0.08, opacity: [0.3, 0.45],  zDepth: 0.5 },
-            { count: 10, sizeRange: [14, 24], speedMult: 0.04, opacity: [0.5, 0.7],   zDepth: 0.9 },
-        ];
+        class Part {
+            constructor() { this.reset(true); } // true = spread across screen initially
+            reset(init) {
+                this.x = Math.random() * w;                        // Random x position
+                this.y = init ? Math.random() * h : h + 80;       // Spread out on init, bottom on respawn
+                this.sz = Math.random() * 52 + 28;                 // Size: 28px to 80px
+                this.e = emojis[Math.floor(Math.random() * emojis.length)]; // Random emoji
+                this.vx = (Math.random() - 0.5) * 0.35;           // Horizontal drift
+                this.vy = -(Math.random() * 0.55 + 0.15);         // Upward speed (negative)
+                this.sp = (Math.random() - 0.5) * 0.008;          // Spin speed
+                this.a = Math.random() * Math.PI * 2;              // Starting angle
+                this.op = Math.random() * 0.2 + 0.15;             // Visible opacity (0.15–0.35)
+            }
+            tick() {
+                this.x += this.vx;                    // Move horizontally
+                this.y += this.vy;                    // Move upward
+                this.a += this.sp;                    // Rotate
+                if (this.y < -80) this.reset(false);  // Off top → respawn at bottom
+                if (this.x > w + 60) this.x = -60;   // Wrap right edge
+                if (this.x < -60) this.x = w + 60;   // Wrap left edge
+            }
+            draw() {
+                ctx.save();                           // Save canvas state
+                ctx.translate(this.x, this.y);        // Move origin to particle
+                ctx.rotate(this.a);                   // Apply rotation
+                ctx.globalAlpha = this.op;            // Set transparency
+                ctx.font = this.sz + 'px sans-serif'; // Set emoji size
+                ctx.fillText(this.e, -this.sz / 2, this.sz / 3); // Draw centered
+                ctx.restore();                        // Restore canvas state
+            }
+        }
 
         function resize() {
             w = canvas.width = window.innerWidth;
             h = canvas.height = window.innerHeight;
         }
-        window.addEventListener('resize', resize);
+        window.addEventListener('resize', resize, { passive: true });
         resize();
 
-        class Particle {
-            constructor(layer) {
-                this.layer = layer;
-                this.reset(true);
-            }
-            reset(init) {
-                this.x = Math.random() * w;
-                this.y = init ? Math.random() * h : Math.random() > 0.5 ? -80 : h + 80;
-                const [min, max] = this.layer.sizeRange;
-                this.size = Math.random() * (max - min) + min;
-                this.emoji = emojis[Math.floor(Math.random() * emojis.length)];
-                this.speedX = (Math.random() - 0.5) * this.layer.speedMult * 2;
-                this.speedY = (Math.random() * 0.3 + 0.1) * this.layer.speedMult * 8;
-                this.spin   = (Math.random() - 0.5) * 0.012;
-                this.angle  = Math.random() * Math.PI * 2;
-                const [oMin, oMax] = this.layer.opacity;
-                this.opacity = Math.random() * (oMax - oMin) + oMin;
-                this.zDepth = this.layer.zDepth;
-            }
-            update(mx, my) {
-                // Parallax offset based on mouse + depth
-                const px = (mx - 0.5) * this.zDepth * 40;
-                const py = (my - 0.5) * this.zDepth * 25;
-                this.x += this.speedX;
-                this.y += this.speedY;
-                this.angle += this.spin;
-                this.renderX = this.x + px;
-                this.renderY = this.y + py;
-                if (this.y > h + 80) this.reset(false);
-                if (this.renderX > w + 80) this.renderX -= w + 160;
-                if (this.renderX < -80)    this.renderX += w + 160;
-            }
-            draw() {
-                ctx.save();
-                ctx.translate(this.renderX, this.renderY);
-                ctx.rotate(this.angle);
-                ctx.globalAlpha = this.opacity;
-                ctx.font = `${this.size}px sans-serif`;
-                const isLight = document.documentElement.getAttribute('data-theme') === 'light';
-                ctx.fillStyle = isLight ? '#000' : '#fff';
-                ctx.fillText(this.emoji, -this.size/2, this.size/3);
-                ctx.restore();
-            }
-        }
+        // Create 50 particles and spread them across the canvas
+        for (let i = 0; i < 50; i++) parts.push(new Part());
 
-        function initParticles() {
-            particles.length = 0;
-            LAYERS.forEach(layer => {
-                for (let i = 0; i < layer.count; i++) {
-                    particles.push(new Particle(layer));
-                }
-            });
-        }
-
-        // Mouse tracking (normalized 0–1)
-        let mouseX = 0.5, mouseY = 0.5;
-        let targetMX = 0.5, targetMY = 0.5;
-        window.addEventListener('mousemove', e => {
-            targetMX = e.clientX / w;
-            targetMY = e.clientY / h;
-        });
-
-        // 3D tilt on hero + cards
-        const hero     = document.querySelector('.hero');
-        const features = document.querySelector('.features');
-        const cards    = document.querySelectorAll('.card');
-
-        function updateTilt(mx, my) {
-            const rx = (my - 0.5) * 14;   // pitch
-            const ry = (mx - 0.5) * -18;  // yaw
-
-            if (hero) {
-                hero.style.transform =
-                    `rotateX(${rx * 0.6}deg) rotateY(${ry * 0.6}deg) translateZ(0)`;
-            }
-            if (features) {
-                features.style.transform =
-                    `rotateX(${rx * 0.3}deg) rotateY(${ry * 0.3}deg) translateZ(-20px)`;
-            }
-
-            cards.forEach((card, i) => {
-                const rect = card.getBoundingClientRect();
-                const cardCX = (rect.left + rect.width  / 2) / w;
-                const cardCY = (rect.top  + rect.height / 2) / h;
-                const localRX = (my - cardCY) * 20;
-                const localRY = (mx - cardCX) * -20;
-                card.style.transform =
-                    `perspective(600px) rotateX(${localRX}deg) rotateY(${localRY}deg) translateZ(8px)`;
-            });
-        }
-
-        // Reset cards on mouse leave
-        document.addEventListener('mouseleave', () => {
-            targetMX = 0.5; targetMY = 0.5;
-            cards.forEach(c => {
-                c.style.transform = 'perspective(600px) rotateX(0) rotateY(0) translateZ(0)';
-            });
-        });
-
-        // Card mouse-glow tracking
-        cards.forEach(card => {
-            card.addEventListener('mousemove', e => {
-                const r = card.getBoundingClientRect();
-                const gx = e.clientX - r.left;
-                const gy = e.clientY - r.top;
-                const glow = card.querySelector('.card-glow');
-                if (glow) { glow.style.left = gx + 'px'; glow.style.top = gy + 'px'; }
-            });
-        });
-
-        function animate() {
-            // Smooth mouse lerp
-            mouseX += (targetMX - mouseX) * 0.06;
-            mouseY += (targetMY - mouseY) * 0.06;
-
+        // Main animation loop — runs at ~60fps via requestAnimationFrame
+        // 1. Clear the entire canvas
+        // 2. Update each particle position (tick)
+        // 3. Draw each particle at its new position
+        // 4. Schedule the next frame
+        (function loop() {
             ctx.clearRect(0, 0, w, h);
-
-            // Draw back layers first (lower zDepth)
-            [...particles]
-                .sort((a, b) => a.zDepth - b.zDepth)
-                .forEach(p => { p.update(mouseX, mouseY); p.draw(); });
-
-            updateTilt(mouseX, mouseY);
-            requestAnimationFrame(animate);
-        }
-
-        initParticles();
-        animate();
+            parts.forEach(p => { p.tick(); p.draw(); });
+            requestAnimationFrame(loop);
+        })();
     </script>
 </body>
+
 </html>
