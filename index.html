@@ -20,6 +20,7 @@
     ║  • clamp() for fluid responsive typography                     ║
     ╚══════════════════════════════════════════════════════════════════╝
 -->
+
 <head>
     <meta charset="UTF-8">
     <!-- Makes the page scale properly on mobile devices -->
@@ -104,9 +105,12 @@
             background: var(--bg);
             color: var(--text);
             font-family: 'Outfit', sans-serif;
-            overflow-x: hidden;      /* Prevent horizontal scroll */
-            overflow-y: auto;        /* Allow vertical scrolling  */
-            transition: background 0.4s, color 0.4s; /* Smooth theme switch */
+            overflow-x: hidden;
+            /* Prevent horizontal scroll */
+            overflow-y: auto;
+            /* Allow vertical scrolling  */
+            transition: background 0.4s, color 0.4s;
+            /* Smooth theme switch */
         }
 
         /*
@@ -119,7 +123,8 @@
          */
         #bg-canvas {
             position: fixed;
-            inset: 0;                /* Shorthand: top/right/bottom/left = 0 */
+            inset: 0;
+            /* Shorthand: top/right/bottom/left = 0 */
             z-index: 0;
             pointer-events: none;
             opacity: 5;
@@ -139,10 +144,12 @@
             z-index: 1000;
             width: 52px;
             height: 52px;
-            border-radius: 50%;              /* Makes it a circle */
+            border-radius: 50%;
+            /* Makes it a circle */
             border: 1.5px solid var(--card-br);
             background: var(--card-bg);
-            backdrop-filter: blur(16px);     /* Frosted glass */
+            backdrop-filter: blur(16px);
+            /* Frosted glass */
             cursor: pointer;
             font-size: 1.4rem;
             display: flex;
@@ -155,7 +162,8 @@
         #theme-btn:hover {
             border-color: var(--accent);
             box-shadow: 0 0 20px var(--card-glow);
-            transform: rotate(20deg) scale(1.1); /* Playful spin on hover */
+            transform: rotate(20deg) scale(1.1);
+            /* Playful spin on hover */
         }
 
         /*
@@ -172,18 +180,15 @@
             height: 3px;
             background: linear-gradient(90deg, var(--accent), #00ffaa);
             z-index: 999;
-            width: 0%;                       /* JS updates this */
-            transition: width 0.1s;          /* Smooth width changes */
-            box-shadow: 0 0 8px var(--accent); /* Neon glow effect */
+            width: 0%;
+            /* JS updates this */
+            transition: width 0.1s;
+            /* Smooth width changes */
+            box-shadow: 0 0 8px var(--accent);
+            /* Neon glow effect */
         }
 
-        /*
-         * ─── SECTION BASE LAYOUT ──────────────────────────────
-         * Every <section> is a full-screen (100vh) flex container.
-         * z-index:10 puts content above the background canvas.
-         * Flexbox centers content both vertically and horizontally.
-         * Padding uses viewport-width units (6vw) for fluid spacing.
-         */
+        /* ─── SECTIONS ──────────────────────────────────────────── */
         .section {
             position: relative;
             z-index: 10;
@@ -196,39 +201,22 @@
             padding: 0 6vw;
         }
 
-        /* nth-child(even) = sections 2, 4 get a barely-visible white
-         * tint to subtly differentiate alternating sections */
+        /* Alternating section subtle bg tint */
         .section:nth-child(even) {
             background: rgba(255, 255, 255, 0.015);
         }
 
-        /*
-         * ─── HERO SECTION ──────────────────────────────────────
-         * The first section the user sees.
-         * flex-direction:row puts the title on the left and
-         * the big emoji on the right (side by side).
-         * On mobile this flips to column (see @media below).
-         */
+        /* ─── HERO SECTION ──────────────────────────────────────── */
         #hero {
             flex-direction: row;
             justify-content: space-between;
             gap: 4vw;
         }
 
-        /* Left column: title, subtitle, scroll hint */
         .hero-left {
-            flex: 1;             /* Takes remaining space */
-            max-width: 630px;    /* Don't stretch too wide on large screens */
+            flex: 1;
+            max-width: 630px;
         }
-
-        /*
-         * GRADIENT TEXT EFFECT:
-         * 1. Set a gradient as the background
-         * 2. background-clip:text clips it to the text shape
-         * 3. text-fill-color:transparent makes the text see-through
-         *    so the gradient shows through
-         * clamp(min, preferred, max) makes font size fluid across screens
-         */
 
         .hero-left h1 {
             font-size: clamp(3.5rem, 7vw, 7rem);
@@ -283,21 +271,13 @@
             }
         }
 
-        /* Right column: just the big floating emoji */
         .hero-right {
-            flex: 0 0 auto;      /* Don't grow or shrink */
+            flex: 0 0 auto;
             display: flex;
             align-items: center;
             justify-content: center;
         }
 
-        /*
-         * HERO EMOJI ANIMATIONS:
-         * Two animations run simultaneously:
-         * 1. float (6s) — bobs up/down with slight rotation
-         * 2. spinSlow (20s) — continuously cycles hue-rotate
-         *    on the drop-shadow, creating a color-shifting glow
-         */
         .hero-emoji {
             font-size: clamp(10rem, 22vw, 18rem);
             filter: drop-shadow(0 0 60px rgba(0, 255, 204, 0.2));
@@ -332,61 +312,40 @@
             }
         }
 
-        /*
-         * ─── FEATURE SECTIONS ──────────────────────────────────
-         * Each feature section has two children:
-         *   1. .feat-emoji-wrap  (big emoji)
-         *   2. .card-wrap         (clickable card)
-         *
-         * Default: emoji LEFT, card RIGHT (flex-direction: row)
-         * .emoji-right: reverses to emoji RIGHT, card LEFT
-         * This creates the alternating zigzag layout.
-         */
+        /* ─── FEATURE SECTIONS ──────────────────────────────────── */
         .feature-section {
             flex-direction: row;
             gap: 8vw;
             padding: 80px 8vw;
         }
 
-        /* Reverse layout: emoji on right side */
+        /* emoji-right layout: emoji on right, card on left */
         .feature-section.emoji-right {
             flex-direction: row-reverse;
         }
 
-        /*
-         * ─── SCROLL-IN EMOJI ANIMATION ─────────────────────────
-         * Emojis start invisible (opacity:0) and offset to the side.
-         * When IntersectionObserver detects the section is visible,
-         * JS adds the .visible class which transitions them to
-         * opacity:1 and transform:none.
-         *
-         * .from-right: starts 180px to the right, scaled down, tilted
-         * .from-left:  starts 180px to the left, scaled down, tilted
-         * .visible:    final resting position (centered, full size)
-         *
-         * cubic-bezier(0.23,1,0.32,1) = "ease-out back" — slightly
-         * overshoots then settles, creating a bouncy entrance.
-         */
+        /* BIG FEATURE EMOJI ─────────────────────────────────────── */
         .feat-emoji-wrap {
             flex: 0 0 auto;
             display: flex;
             align-items: center;
             justify-content: center;
-            opacity: 0;   /* Hidden by default — JS reveals on scroll */
+            /* Start hidden — JS will animate in */
+            opacity: 0;
             transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.23, 1, 0.32, 1);
         }
 
-        /* Starting position: pushed RIGHT and rotated clockwise */
+        /* From-right entry */
         .feat-emoji-wrap.from-right {
             transform: translateX(180px) scale(0.7) rotate(15deg);
         }
 
-        /* Starting position: pushed LEFT and rotated counter-clockwise */
+        /* From-left entry */
         .feat-emoji-wrap.from-left {
             transform: translateX(-180px) scale(0.7) rotate(-15deg);
         }
 
-        /* Final position after scroll triggers animation */
+        /* Visible state */
         .feat-emoji-wrap.visible {
             opacity: 1;
             transform: translateX(0) scale(1) rotate(0deg);
@@ -412,17 +371,11 @@
             }
         }
 
-        /*
-         * ─── 3D CARD WRAPPER ──────────────────────────────────────
-         * perspective:900px enables CSS 3D transforms on child card.
-         * Starts hidden (opacity:0, pushed down 50px) and slides up
-         * when .visible is added by IntersectionObserver.
-         * The 0.2s delay staggers it slightly after the emoji.
-         */
+        /* ─── 3D CARD BUTTON ────────────────────────────────────── */
         .card-wrap {
             flex: 1;
             max-width: 480px;
-            perspective: 900px;  /* Required for 3D rotateX/Y to work */
+            perspective: 900px;
             opacity: 0;
             transform: translateY(50px);
             transition: opacity 0.8s ease 0.2s, transform 0.8s cubic-bezier(0.23, 1, 0.32, 1) 0.2s;
@@ -433,13 +386,6 @@
             transform: translateY(0);
         }
 
-        /*
-         * THE CARD ITSELF:
-         * • backdrop-filter:blur(20px) = frosted-glass effect
-         * • transform-style:preserve-3d = children respect 3D space
-         * • On hover: tilts in 3D + gains stronger shadow + border glows
-         * • inset shadow at top creates a subtle "inner light" edge
-         */
         .feat-card {
             background: var(--card-bg);
             border: 1px solid var(--card-br);
@@ -457,13 +403,7 @@
                 inset 0 1px 0 rgba(255, 255, 255, 0.08);
         }
 
-        /*
-         * SHIMMER EFFECT (::before pseudo-element):
-         * A diagonal band of faint white sits off-screen (left:-60%).
-         * On hover it slides across to left:120%, creating a
-         * "light sweeping across the card" effect.
-         * skewX(-15deg) tilts the band diagonally.
-         */
+        /* Shimmer top edge */
         .feat-card::before {
             content: '';
             position: absolute;
@@ -481,14 +421,10 @@
         }
 
         .feat-card:hover::before {
-            left: 120%;          /* Sweeps to the right on hover */
+            left: 120%;
         }
 
-        /*
-         * TOP ACCENT LINE (::after pseudo-element):
-         * An invisible horizontal gradient line at the top.
-         * Fades in on hover to emphasize the card edge.
-         */
+        /* Corner accent */
         .feat-card::after {
             content: '';
             position: absolute;
@@ -514,7 +450,7 @@
             border-color: var(--accent);
         }
 
-        /* Card number label — small accent-colored tag like "01 — Detection" */
+        /* Card number label */
         .card-num {
             font-size: 0.7rem;
             font-weight: 700;
@@ -525,7 +461,6 @@
             opacity: 0.8;
         }
 
-        /* Card emoji icon — scales up + rotates on card hover for interactivity */
         .card-icon-label {
             font-size: 3.2rem;
             margin-bottom: 16px;
@@ -553,12 +488,7 @@
             margin-bottom: 32px;
         }
 
-        /*
-         * CTA (Call-To-Action) BUTTON:
-         * Pill-shaped (border-radius:50px), accent-colored.
-         * Lifts up on hover (-3px) with stronger glow shadow.
-         * The .arrow span inside slides right on hover.
-         */
+        /* CTA Button */
         .card-cta {
             display: inline-flex;
             align-items: center;
@@ -570,7 +500,7 @@
             font-size: 0.9rem;
             letter-spacing: 2px;
             text-transform: uppercase;
-            border-radius: 50px;     /* Pill shape */
+            border-radius: 50px;
             border: none;
             cursor: pointer;
             transition: 0.25s;
@@ -593,11 +523,7 @@
             transform: translateX(5px);
         }
 
-        /*
-         * DANGER VARIANT (for the Analyzer "dev mode" card):
-         * Outlined style instead of filled — red border with
-         * transparent background. Fills red on hover.
-         */
+        /* Special style for Powerful Version */
         .card-cta.danger {
             background: transparent;
             color: #ff0055;
@@ -606,12 +532,12 @@
         }
 
         .card-cta.danger:hover {
-            background: #ff0055;     /* Fills with red on hover */
+            background: #ff0055;
             color: #fff;
             box-shadow: 0 8px 30px rgba(255, 0, 85, 0.4);
         }
 
-        /* Horizontal gradient line between sections for visual separation */
+        /* Section divider line */
         .sect-divider {
             position: absolute;
             bottom: 0;
@@ -621,7 +547,7 @@
             background: linear-gradient(90deg, transparent, var(--card-br), transparent);
         }
 
-        /* Fixed watermark in bottom-left corner — uses handwritten font */
+        /* ─── AUTHOR STAMP ──────────────────────────────────────── */
         .author-stamp {
             position: fixed;
             bottom: 24px;
@@ -638,156 +564,22 @@
             opacity: 0.5;
         }
 
-        /* ─── HERO BADGE (small pill above title) ───────────────── */
-        .hero-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 6px 16px;
-            border-radius: 50px;
-            border: 1px solid var(--card-br);
-            background: var(--card-bg);
-            backdrop-filter: blur(10px);
-            font-size: 0.75rem;
-            font-weight: 700;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            color: var(--accent);
-            margin-bottom: 20px;
-            animation: fadeSlideIn 1s ease 0.2s both;
-        }
-        .hero-badge .dot {
-            width: 8px; height: 8px;
-            border-radius: 50%;
-            background: var(--accent);
-            animation: pulse-dot 2s infinite;
-        }
-        @keyframes pulse-dot {
-            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--accent); }
-            50% { opacity: 0.6; box-shadow: 0 0 0 6px transparent; }
-        }
-        @keyframes fadeSlideIn {
-            from { opacity: 0; transform: translateY(15px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-
-        /* ─── HERO STATS ROW ────────────────────────────────────── */
-        .hero-stats {
-            display: flex;
-            gap: 32px;
-            margin-top: 32px;
-            animation: fadeSlideIn 1s ease 0.5s both;
-        }
-        .stat-item {
-            display: flex;
-            flex-direction: column;
-        }
-        .stat-value {
-            font-size: 1.6rem;
-            font-weight: 900;
-            color: var(--accent);
-            letter-spacing: -1px;
-        }
-        .stat-label {
-            font-size: 0.7rem;
-            color: var(--sub);
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            margin-top: 2px;
-        }
-
-        /* ─── TECH PILLS (inside cards) ─────────────────────────── */
-        .tech-pills {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            margin-bottom: 24px;
-        }
-        .tech-pill {
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.65rem;
-            font-weight: 700;
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            border: 1px solid var(--card-br);
-            color: var(--sub);
-            background: transparent;
-            transition: 0.3s;
-        }
-        .feat-card:hover .tech-pill {
-            border-color: var(--accent);
-            color: var(--accent);
-        }
-
-        /* ─── SIDE NAV DOTS ─────────────────────────────────────── */
-        .side-nav {
-            position: fixed;
-            right: 28px;
-            top: 50%;
-            transform: translateY(-50%);
-            z-index: 500;
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-        }
-        .side-dot {
-            width: 10px; height: 10px;
-            border-radius: 50%;
-            border: 2px solid var(--card-br);
-            background: transparent;
-            cursor: pointer;
-            transition: 0.3s;
-        }
-        .side-dot:hover,
-        .side-dot.active {
-            background: var(--accent);
-            border-color: var(--accent);
-            box-shadow: 0 0 10px var(--card-glow);
-            transform: scale(1.3);
-        }
-
-        /* ─── FOOTER ────────────────────────────────────────────── */
-        .footer {
-            position: relative;
-            z-index: 10;
-            text-align: center;
-            padding: 60px 6vw;
-            border-top: 1px solid var(--card-br);
-        }
-        .footer p {
-            color: var(--sub);
-            font-size: 0.85rem;
-            letter-spacing: 1px;
-        }
-        .footer .footer-brand {
-            font-weight: 900;
-            font-size: 1.1rem;
-            color: var(--text);
-            margin-bottom: 8px;
-        }
-
-        /* ─── ANIMATED CARD TOP BORDER ──────────────────────────── */
-        .feat-card .card-top-line {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 2px;
-            background: linear-gradient(90deg, transparent, var(--accent), transparent);
-            opacity: 0;
-            transition: opacity 0.4s;
-        }
-        .feat-card:hover .card-top-line { opacity: 1; }
-
         /* ─── RESPONSIVE ────────────────────────────────────────── */
         @media (max-width: 768px) {
             #hero {
                 flex-direction: column;
                 text-align: center;
-                padding: 100px 6vw 40px;
+                padding: 80px 6vw 40px;
             }
-            .hero-right { order: -1; }
-            .hero-emoji { font-size: clamp(6rem, 35vw, 10rem); margin-bottom: 20px; }
-            .hero-stats { justify-content: center; flex-wrap: wrap; gap: 20px; margin-top: 24px; }
+
+            .hero-right {
+                order: -1;
+            }
+
+            .hero-emoji {
+                font-size: clamp(6rem, 40vw, 10rem);
+            }
+
             .feature-section,
             .feature-section.emoji-right {
                 flex-direction: column !important;
@@ -795,12 +587,14 @@
                 padding: 60px 6vw;
                 gap: 30px;
             }
-            .feat-emoji { font-size: clamp(5rem, 30vw, 8rem); margin-bottom: -10px; }
-            .card-wrap { max-width: 100%; }
-            .feat-card { padding: 36px 24px; }
-            .card-cta { width: 100%; justify-content: center; }
-            .tech-pills { justify-content: center; }
-            .side-nav { display: none; }
+
+            .feat-emoji {
+                font-size: clamp(5rem, 30vw, 8rem);
+            }
+
+            .card-wrap {
+                max-width: 100%;
+            }
         }
     </style>
 </head>
@@ -822,34 +616,10 @@
     <!-- ══════════════════════════════════════════════
      SECTION 0 — HERO
 ══════════════════════════════════════════════ -->
-    <!-- Side navigation dots -->
-    <nav class="side-nav">
-        <div class="side-dot active" onclick="document.getElementById('hero').scrollIntoView({behavior:'smooth'})" title="Home"></div>
-        <div class="side-dot" onclick="document.getElementById('s-detector').scrollIntoView({behavior:'smooth'})" title="Detector"></div>
-        <div class="side-dot" onclick="document.getElementById('s-game').scrollIntoView({behavior:'smooth'})" title="Game"></div>
-        <div class="side-dot" onclick="document.getElementById('s-filters').scrollIntoView({behavior:'smooth'})" title="Filters"></div>
-        <div class="side-dot" onclick="document.getElementById('s-analyzer').scrollIntoView({behavior:'smooth'})" title="Analyzer"></div>
-    </nav>
-
     <section class="section" id="hero">
         <div class="hero-left">
-            <div class="hero-badge"><span class="dot"></span> Live AI Engine</div>
             <h1>FaceVerse</h1>
             <p>Advanced Neural Expressions Suite</p>
-            <div class="hero-stats">
-                <div class="stat-item">
-                    <span class="stat-value">478</span>
-                    <span class="stat-label">Landmarks</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-value">52</span>
-                    <span class="stat-label">Blendshapes</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-value">15</span>
-                    <span class="stat-label">AR Filters</span>
-                </div>
-            </div>
             <div class="scroll-hint">Scroll to explore</div>
         </div>
         <div class="hero-right">
@@ -857,6 +627,11 @@
         </div>
     </section>
 
+    <!-- ══════════════════════════════════════════════
+     SECTION 1 — DETECTOR
+     Emoji: from right → slides to left
+     Card: on right
+══════════════════════════════════════════════ -->
     <section class="section feature-section emoji-right" id="s-detector">
         <div class="feat-emoji-wrap from-right" data-dir="right">
             <span class="feat-emoji">🧐</span>
@@ -870,11 +645,6 @@
                     Real-time emotion AI with 3D face visualization.
                     52 blendshapes. 478 landmarks. All in your browser.
                 </div>
-                <div class="tech-pills">
-                    <span class="tech-pill">MediaPipe</span>
-                    <span class="tech-pill">WebGL</span>
-                    <span class="tech-pill">Real-time</span>
-                </div>
                 <button class="card-cta">
                     Launch <span class="arrow">→</span>
                 </button>
@@ -884,7 +654,7 @@
     </section>
 
     <!-- ══════════════════════════════════════════════
-     SECTION 2 — GAME HUB
+     SECTION 2 — MIMIC GAME
      Emoji: from left → slides to right
      Card: on left
 ══════════════════════════════════════════════ -->
@@ -898,13 +668,9 @@
                 <span class="card-icon-label">🏆</span>
                 <div class="card-title">Game Hub</div>
                 <div class="card-desc">
-                    Play 5 unique AI-driven face games. Mimic expressions, flap with your eyebrows, 
-                    and race using head tilts. Your face is the controller.
-                </div>
-                <div class="tech-pills">
-                    <span class="tech-pill">5 Games</span>
-                    <span class="tech-pill">Achievements</span>
-                    <span class="tech-pill">History</span>
+                    Play 5 unique AI-driven face games.
+                    Mimic expressions, flap with your eyebrows, and race using head tilts.
+                    Your face is the controller.
                 </div>
                 <button class="card-cta">
                     Play Now <span class="arrow">→</span>
@@ -932,11 +698,6 @@
                     15 procedural face filters. Iron HUD, Neon, Glitch,
                     Fire, Alien and more. Snap &amp; save photos.
                 </div>
-                <div class="tech-pills">
-                    <span class="tech-pill">Canvas 2D</span>
-                    <span class="tech-pill">3D Shading</span>
-                    <span class="tech-pill">Gallery</span>
-                </div>
                 <button class="card-cta">
                     Open AR <span class="arrow">→</span>
                 </button>
@@ -963,11 +724,6 @@
                     Raw 52-point blendshape visualizer. 4×4 transformation
                     matrix. Full diagnostic dashboard for developers.
                 </div>
-                <div class="tech-pills">
-                    <span class="tech-pill">Matrix 4×4</span>
-                    <span class="tech-pill">478 Points</span>
-                    <span class="tech-pill">Dev Tools</span>
-                </div>
                 <button class="card-cta danger">
                     ☰ Open Analyzer <span class="arrow">→</span>
                 </button>
@@ -975,35 +731,17 @@
         </div>
     </section>
 
-    <!-- Footer -->
-    <footer class="footer">
-        <p class="footer-brand">FaceVerse AI Suite</p>
-        <p>Built with MediaPipe · Canvas 2D · Three.js · WebGL</p>
-        <p style="margin-top:8px;opacity:0.5;">© 2026 Pranav Pushya</p>
-    </footer>
-
     <script src="main.js"></script>
-    <script src="audio-fx.js"></script>
-    <script src="ai-voice.js"></script>
-    <script src="capture-module.js"></script>
     <script>
-        // ═══════════════════════════════════════════════════════════
-        // THEME TOGGLE
-        // ═══════════════════════════════════════════════════════════
-        // setTheme() is defined in main.js — it sets the
-        // data-theme attribute on <html> and saves to localStorage.
-        // This function is called by the #theme-btn onclick.
+        // ─── THEME ───────────────────────────────────────────────────────────────────
         window.toggleTheme = function () {
             const current = document.documentElement.getAttribute('data-theme');
             const next = current === 'light' ? 'dark' : 'light';
-            setTheme(next);  // from main.js — applies CSS variable swap
-            // Update button icon: show moon in light mode, sun in dark
+            setTheme(next);
             document.getElementById('theme-btn').textContent = next === 'light' ? '🌙' : '☀️';
         };
 
-        // IIFE (Immediately Invoked Function Expression):
-        // Runs once on page load to set the correct theme
-        // based on: saved preference → OS preference → default dark
+        // Sync button icon on load
         (function () {
             const saved = localStorage.getItem('theme');
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -1012,62 +750,22 @@
             document.getElementById('theme-btn').textContent = theme === 'light' ? '🌙' : '☀️';
         })();
 
-        // ═══════════════════════════════════════════════════════════
-        // SCROLL PROGRESS BAR
-        // ═══════════════════════════════════════════════════════════
-        // On every scroll event, calculate how far the user has
-        // scrolled as a percentage and set #progress-bar width.
-        // scrollHeight = total page height (including off-screen)
-        // innerHeight  = visible viewport height
-        // { passive: true } = tells browser this won't call
-        // preventDefault(), so scrolling stays smooth.
+        // ─── SCROLL PROGRESS ─────────────────────────────────────────────────────────
         const progressBar = document.getElementById('progress-bar');
         window.addEventListener('scroll', () => {
-            const scrolled = window.scrollY;                                    // How far scrolled
-            const total = document.documentElement.scrollHeight - window.innerHeight; // Max scroll
-            progressBar.style.width = (scrolled / total * 100) + '%';           // Set bar width
+            const scrolled = window.scrollY;
+            const total = document.documentElement.scrollHeight - window.innerHeight;
+            progressBar.style.width = (scrolled / total * 100) + '%';
         }, { passive: true });
 
-        // ═══════════════════════════════════════════════════════════
-        // SIDE NAV DOT TRACKING
-        // ═══════════════════════════════════════════════════════════
-        // Highlights the correct side-nav dot based on which section
-        // is currently in the viewport.
-        const sideDots = document.querySelectorAll('.side-dot');
-        const allSections = ['hero', 's-detector', 's-game', 's-filters', 's-analyzer'];
-        const sectionObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (!entry.isIntersecting) return;
-                const idx = allSections.indexOf(entry.target.id);
-                sideDots.forEach((d, i) => d.classList.toggle('active', i === idx));
-            });
-        }, { threshold: 0.4 });
-        allSections.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) sectionObserver.observe(el);
-        });
-
-        // ═══════════════════════════════════════════════════════════
-        // SCROLL-TRIGGERED ANIMATIONS (IntersectionObserver)
-        // ═══════════════════════════════════════════════════════════
-        // IntersectionObserver watches each .feature-section.
-        // When 25% of a section enters the viewport (threshold:0.25),
-        // the callback fires and adds .visible to the emoji + card,
-        // which triggers the CSS transitions defined above.
-        //
-        // Double requestAnimationFrame ensures the browser has
-        // painted the initial (hidden) state before applying .visible,
-        // preventing the animation from being skipped.
-        //
-        // io.unobserve() stops watching after first trigger,
-        // so the animation only plays once (no re-hiding on scroll up).
+        // ─── SCROLL ANIMATIONS (IntersectionObserver) ─────────────────────────────────
         const io = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
-                if (!entry.isIntersecting) return; // Skip if scrolling OUT
+                if (!entry.isIntersecting) return;
 
                 const section = entry.target;
 
-                // Step 1: Animate the big emoji (slides in from left/right)
+                // Animate emoji
                 const emojiWrap = section.querySelector('.feat-emoji-wrap');
                 if (emojiWrap) {
                     requestAnimationFrame(() => {
@@ -1077,29 +775,21 @@
                     });
                 }
 
-                // Step 2: Animate the card (fades up, 150ms delay for stagger)
+                // Animate card
                 const cardWrap = section.querySelector('.card-wrap');
                 if (cardWrap) {
                     setTimeout(() => cardWrap.classList.add('visible'), 150);
                 }
 
-                io.unobserve(section); // Only animate once
+                io.unobserve(section);
             });
         }, {
-            threshold: 0.25  // Trigger when 25% of section is visible
+            threshold: 0.25
         });
 
-        // Start observing all 4 feature sections
         document.querySelectorAll('.feature-section').forEach(s => io.observe(s));
 
-        // ═══════════════════════════════════════════════════════════
-        // 3D TILT EFFECT ON CARDS
-        // ═══════════════════════════════════════════════════════════
-        // On mousemove: calculate how far the cursor is from the
-        // card center, then apply rotateX/Y proportionally.
-        // rx = vertical tilt (pitch), ry = horizontal tilt (yaw).
-        // *10 controls intensity (max ±10 degrees).
-        // On mouseleave: reset transform so card snaps back flat.
+        // ─── 3D TILT ON CARDS (mouse move) ───────────────────────────────────────────
         document.querySelectorAll('.feat-card').forEach(card => {
             card.addEventListener('mousemove', e => {
                 const r = card.getBoundingClientRect();
@@ -1115,61 +805,43 @@
             });
         });
 
-        // ═══════════════════════════════════════════════════════════
-        // BACKGROUND AMBIENT PARTICLE SYSTEM
-        // ═══════════════════════════════════════════════════════════
-        // Draws 35 semi-transparent emoji particles on a fixed
-        // <canvas> behind all content. They drift upward slowly
-        // and wrap around screen edges.
-        //
-        // Each particle (Part class) has:
-        //   x, y    — position
-        //   vx, vy  — velocity (vy is negative = moves UP)
-        //   sz      — font size in pixels (12-44px)
-        //   sp      — spin speed (radians per frame)
-        //   a       — current rotation angle
-        //   op      — opacity (0.04-0.22, very faint)
-        //   e       — the emoji character to draw
-        //
-        // When a particle drifts off the top (y < -80), it
-        // resets to the bottom (y = h + 80) with new random values.
+        // ─── BACKGROUND AMBIENT PARTICLES ────────────────────────────────────────────
         const canvas = document.getElementById('bg-canvas');
-        const ctx = canvas.getContext('2d'); // 2D drawing context
-        let w, h; // Canvas dimensions (updated on resize)
+        const ctx = canvas.getContext('2d');
+        let w, h;
 
         const emojis = ['🧐', '😎', '🤓', '🤯', '🤡', '👻', '👽', '🤖', '🎃', '🤔', '🤫', '🎭', '⚡', '✨', '🎮'];
-        const parts = []; // Array of all active particles
+        const parts = [];
 
         class Part {
-            constructor() { this.reset(true); } // true = spread across screen initially
+            constructor() { this.reset(true); }
             reset(init) {
-                const isMobile = window.innerWidth < 768;
-                this.x = Math.random() * w;                        // Random x position
-                this.y = init ? Math.random() * h : h + 80;       // Spread out on init, bottom on respawn
-                this.sz = isMobile ? Math.random() * 24 + 16 : Math.random() * 52 + 28; // Smaller on mobile
-                this.e = emojis[Math.floor(Math.random() * emojis.length)]; // Random emoji
-                this.vx = (Math.random() - 0.5) * 0.35;           // Horizontal drift
-                this.vy = -(Math.random() * 0.55 + 0.15);         // Upward speed (negative)
-                this.sp = (Math.random() - 0.5) * 0.008;          // Spin speed
-                this.a = Math.random() * Math.PI * 2;              // Starting angle
-                this.op = Math.random() * 0.2 + 0.15;             // Visible opacity (0.15–0.35)
+                this.x = Math.random() * w;
+                this.y = init ? Math.random() * h : h + 80;
+                this.sz = Math.random() * 32 + 12;
+                this.e = emojis[Math.floor(Math.random() * emojis.length)];
+                this.vx = (Math.random() - 0.5) * 0.35;
+                this.vy = -(Math.random() * 0.35 + 0.15);
+                this.sp = (Math.random() - 0.5) * 0.008;
+                this.a = Math.random() * Math.PI * 2;
+                this.op = Math.random() * 0.18 + 0.04;
             }
             tick() {
-                this.x += this.vx;                    // Move horizontally
-                this.y += this.vy;                    // Move upward
-                this.a += this.sp;                    // Rotate
-                if (this.y < -80) this.reset(false);  // Off top → respawn at bottom
-                if (this.x > w + 60) this.x = -60;   // Wrap right edge
-                if (this.x < -60) this.x = w + 60;   // Wrap left edge
+                this.x += this.vx;
+                this.y += this.vy;
+                this.a += this.sp;
+                if (this.y < -80) this.reset(false);
+                if (this.x > w + 60) this.x = -60;
+                if (this.x < -60) this.x = w + 60;
             }
             draw() {
-                ctx.save();                           // Save canvas state
-                ctx.translate(this.x, this.y);        // Move origin to particle
-                ctx.rotate(this.a);                   // Apply rotation
-                ctx.globalAlpha = this.op;            // Set transparency
-                ctx.font = this.sz + 'px sans-serif'; // Set emoji size
-                ctx.fillText(this.e, -this.sz / 2, this.sz / 3); // Draw centered
-                ctx.restore();                        // Restore canvas state
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.a);
+                ctx.globalAlpha = this.op;
+                ctx.font = this.sz + 'px sans-serif';
+                ctx.fillText(this.e, -this.sz / 2, this.sz / 3);
+                ctx.restore();
             }
         }
 
@@ -1180,15 +852,8 @@
         window.addEventListener('resize', resize, { passive: true });
         resize();
 
-        // Create particles based on screen size to prevent mobile overlap
-        const particleCount = window.innerWidth < 768 ? 15 : 50;
-        for (let i = 0; i < particleCount; i++) parts.push(new Part());
+        for (let i = 0; i < 35; i++) parts.push(new Part());
 
-        // Main animation loop — runs at ~60fps via requestAnimationFrame
-        // 1. Clear the entire canvas
-        // 2. Update each particle position (tick)
-        // 3. Draw each particle at its new position
-        // 4. Schedule the next frame
         (function loop() {
             ctx.clearRect(0, 0, w, h);
             parts.forEach(p => { p.tick(); p.draw(); });

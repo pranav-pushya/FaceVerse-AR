@@ -208,6 +208,33 @@
         }
     </script>
 
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+        import { getFirestore, collection, addDoc, query, where, orderBy, limit, getDocs } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+        const FIREBASE_CONFIG = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        const app = initializeApp(FIREBASE_CONFIG);
+        const db  = getFirestore(app);
+
+        // Expose to global scope so gameOver() can call it
+        window._db          = db;
+        window._collection  = collection;
+        window._addDoc      = addDoc;
+        window._query       = query;
+        window._where       = where;
+        window._orderBy     = orderBy;
+        window._limit       = limit;
+        window._getDocs     = getDocs;
+    </script>
+
     <script src="main.js"></script>
     <script src="audio-fx.js"></script>
     <script src="ai-voice.js"></script>
@@ -514,7 +541,7 @@
             } else {
                 document.getElementById('roast-msg').innerText = ROASTS[Math.floor(Math.random() * ROASTS.length)];
             }
-            // Save run history
+            // Save run history locally
             const runs = JSON.parse(localStorage.getItem('faceverse_runs') || '[]');
             runs.push({ mode: 'Normal', score: score, date: new Date().toISOString() });
             localStorage.setItem('faceverse_runs', JSON.stringify(runs));
@@ -522,6 +549,27 @@
             if (typeof FX !== 'undefined') FX.fail();
             if (typeof Voice !== 'undefined') Voice.say('Game over. Score: ' + score);
             playSound(150, "sawtooth");
+            // Submit to Firebase global leaderboard
+            if (score > 0) submitToLeaderboard('Normal', score);
+        }
+
+        async function submitToLeaderboard(mode, finalScore) {
+            if (!window._db) return;
+            const name = localStorage.getItem('faceverse_player_name') || 'Anonymous';
+            try {
+                await window._addDoc(
+                    window._collection(window._db, 'leaderboard'),
+                    {
+                        name:      name.substring(0, 20),
+                        score:     finalScore,
+                        mode:      mode,
+                        timestamp: Date.now()
+                    }
+                );
+                console.log('[FaceVerse] Score submitted to leaderboard');
+            } catch (e) {
+                console.warn('[FaceVerse] Leaderboard submit failed (offline?):', e.message);
+            }
         }
 
         function updateScore(v) { document.getElementById('score-board').innerText = "SCORE: " + v; }

@@ -437,30 +437,79 @@
         <div id="leaderboard" style="
             margin-top:40px; text-align:center;
             font-family:'Outfit',sans-serif;
+            max-width:700px; margin-left:auto; margin-right:auto;
         ">
-            <p
-                style="font-size:0.75rem;letter-spacing:3px;color:var(--subtitle-color);margin-bottom:16px;text-transform:uppercase">
-                High Scores</p>
-            <div style="display:flex;gap:20px;justify-content:center;flex-wrap:wrap">
-                <div style="
-                    background:var(--card-bg);border:1px solid var(--card-border);
-                    border-radius:16px;padding:20px 32px;min-width:140px;
-                    backdrop-filter:blur(12px);
-                ">
-                    <div style="font-size:0.8rem;color:var(--subtitle-color);letter-spacing:2px;margin-bottom:8px">
-                        NORMAL</div>
-                    <div id="hs-lv1" style="font-size:2.5rem;font-weight:900;color:#00ffcc">—</div>
+            <p style="font-size:0.75rem;letter-spacing:3px;color:var(--subtitle-color);
+                       margin-bottom:8px;text-transform:uppercase">
+                🌍 Global Leaderboard
+            </p>
+
+            <!-- Player name input -->
+            <div style="margin-bottom:20px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap">
+                <input id="player-name-input" type="text" maxlength="20"
+                    placeholder="Your name (shown on leaderboard)"
+                    style="padding:10px 16px;border-radius:30px;border:1px solid var(--card-border);
+                           background:var(--card-bg);color:var(--text-color);
+                           font-family:'Outfit',sans-serif;font-size:0.95rem;
+                           width:260px;outline:none;backdrop-filter:blur(8px);">
+                <button onclick="saveName()" style="
+                    padding:10px 20px;border-radius:30px;background:#00ffcc;
+                    color:#000;border:none;font-weight:700;cursor:pointer;
+                    font-family:'Outfit',sans-serif;">Save</button>
+            </div>
+
+            <!-- Mode tabs -->
+            <div style="display:flex;gap:10px;justify-content:center;margin-bottom:16px">
+                <button onclick="showBoard('Normal')" id="tab-normal" style="
+                    padding:8px 24px;border-radius:30px;border:1px solid #00ffcc;
+                    background:#00ffcc;color:#000;font-weight:700;cursor:pointer;
+                    font-family:'Outfit',sans-serif;font-size:0.85rem;">Normal</button>
+                <button onclick="showBoard('Insane')" id="tab-insane" style="
+                    padding:8px 24px;border-radius:30px;border:1px solid var(--card-border);
+                    background:transparent;color:var(--text-color);font-weight:700;cursor:pointer;
+                    font-family:'Outfit',sans-serif;font-size:0.85rem;">Insane</button>
+            </div>
+
+            <!-- Personal best -->
+            <div style="display:flex;gap:16px;justify-content:center;margin-bottom:20px;flex-wrap:wrap">
+                <div style="background:var(--card-bg);border:1px solid var(--card-border);
+                            border-radius:14px;padding:14px 28px;backdrop-filter:blur(12px);">
+                    <div style="font-size:0.7rem;color:var(--subtitle-color);letter-spacing:2px;margin-bottom:6px">MY BEST · NORMAL</div>
+                    <div id="hs-lv1" style="font-size:2rem;font-weight:900;color:#00ffcc">—</div>
                 </div>
-                <div style="
-                    background:var(--card-bg);border:1px solid var(--card-border);
-                    border-radius:16px;padding:20px 32px;min-width:140px;
-                    backdrop-filter:blur(12px);
-                ">
-                    <div style="font-size:0.8rem;color:var(--subtitle-color);letter-spacing:2px;margin-bottom:8px">
-                        INSANE</div>
-                    <div id="hs-lv2" style="font-size:2.5rem;font-weight:900;color:#ff0055">—</div>
+                <div style="background:var(--card-bg);border:1px solid var(--card-border);
+                            border-radius:14px;padding:14px 28px;backdrop-filter:blur(12px);">
+                    <div style="font-size:0.7rem;color:var(--subtitle-color);letter-spacing:2px;margin-bottom:6px">MY BEST · INSANE</div>
+                    <div id="hs-lv2" style="font-size:2rem;font-weight:900;color:#ff0055">—</div>
                 </div>
             </div>
+
+            <!-- Global board table -->
+            <div style="background:var(--card-bg);border:1px solid var(--card-border);
+                        border-radius:20px;overflow:hidden;backdrop-filter:blur(12px);">
+                <div id="global-board-loading" style="padding:30px;color:var(--subtitle-color);font-size:0.9rem">
+                    ⏳ Loading global scores...
+                </div>
+                <table id="global-board-table" style="width:100%;display:none;border-collapse:collapse">
+                    <thead>
+                        <tr style="border-bottom:1px solid var(--card-border)">
+                            <th style="padding:14px 20px;text-align:left;font-size:0.75rem;
+                                       letter-spacing:2px;color:var(--subtitle-color)">#</th>
+                            <th style="padding:14px 20px;text-align:left;font-size:0.75rem;
+                                       letter-spacing:2px;color:var(--subtitle-color)">PLAYER</th>
+                            <th style="padding:14px 20px;text-align:right;font-size:0.75rem;
+                                       letter-spacing:2px;color:var(--subtitle-color)">SCORE</th>
+                        </tr>
+                    </thead>
+                    <tbody id="global-board-body"></tbody>
+                </table>
+                <div id="global-board-empty" style="padding:30px;color:var(--subtitle-color);
+                                                     font-size:0.9rem;display:none">
+                    No scores yet. Be the first! 🎯
+                </div>
+            </div>
+
+            <p id="global-rank-msg" style="margin-top:12px;font-size:0.85rem;color:var(--subtitle-color)"></p>
         </div>
 
         <!-- Stats Dashboard -->
@@ -501,6 +550,33 @@
 
     <div class="author-stamp">Pranav Pushya</div>
 
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+        import { getFirestore, collection, addDoc, query, where, orderBy, limit, getDocs } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+        const FIREBASE_CONFIG = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        const app = initializeApp(FIREBASE_CONFIG);
+        const db  = getFirestore(app);
+
+        // Expose to global scope so gameOver() can call it
+        window._db          = db;
+        window._collection  = collection;
+        window._addDoc      = addDoc;
+        window._query       = query;
+        window._where       = where;
+        window._orderBy     = orderBy;
+        window._limit       = limit;
+        window._getDocs     = getDocs;
+    </script>
+
     <script src="main.js"></script>
 
     <script>
@@ -518,11 +594,119 @@
         }
         cleanMenu();
 
-        // ─── HIGH SCORES ────────────────────────────────────────────
+        // Personal bests
         const hs1 = localStorage.getItem('faceverse_hs_lv1');
         const hs2 = localStorage.getItem('faceverse_hs_lv2');
         if (hs1) document.getElementById('hs-lv1').textContent = hs1;
         if (hs2) document.getElementById('hs-lv2').textContent = hs2;
+
+        // Player name
+        const savedName = localStorage.getItem('faceverse_player_name');
+        if (savedName) document.getElementById('player-name-input').value = savedName;
+
+        function saveName() {
+            const val = document.getElementById('player-name-input').value.trim();
+            if (!val) return;
+            localStorage.setItem('faceverse_player_name', val.substring(0, 20));
+            const btn = document.querySelector('button[onclick="saveName()"]');
+            btn.textContent = '✓ Saved';
+            btn.style.background = '#00cc99';
+            setTimeout(() => { btn.textContent = 'Save'; btn.style.background = '#00ffcc'; }, 2000);
+        }
+
+        let currentMode = 'Normal';
+        const MEDAL = ['🥇','🥈','🥉'];
+
+        async function showBoard(mode) {
+            currentMode = mode;
+
+            // Update tab styles
+            document.getElementById('tab-normal').style.background  = mode === 'Normal' ? '#00ffcc' : 'transparent';
+            document.getElementById('tab-normal').style.color       = mode === 'Normal' ? '#000' : 'var(--text-color)';
+            document.getElementById('tab-insane').style.background  = mode === 'Insane' ? '#ff0055' : 'transparent';
+            document.getElementById('tab-insane').style.color       = mode === 'Insane' ? '#fff' : 'var(--text-color)';
+            document.getElementById('tab-insane').style.borderColor = mode === 'Insane' ? '#ff0055' : 'var(--card-border)';
+            document.getElementById('tab-normal').style.borderColor = mode === 'Normal' ? '#00ffcc' : 'var(--card-border)';
+
+            const loading = document.getElementById('global-board-loading');
+            const table   = document.getElementById('global-board-table');
+            const empty   = document.getElementById('global-board-empty');
+            const body    = document.getElementById('global-board-body');
+            const rankMsg = document.getElementById('global-rank-msg');
+
+            loading.style.display = 'block';
+            table.style.display   = 'none';
+            empty.style.display   = 'none';
+            rankMsg.textContent   = '';
+
+            if (!window._db) {
+                loading.textContent = '⚠️ Firebase not connected. Check console.';
+                return;
+            }
+
+            try {
+                const q = window._query(
+                    window._collection(window._db, 'leaderboard'),
+                    window._where('mode', '==', mode),
+                    window._orderBy('score', 'desc'),
+                    window._limit(10)
+                );
+                const snap = await window._getDocs(q);
+
+                loading.style.display = 'none';
+
+                if (snap.empty) {
+                    empty.style.display = 'block';
+                    return;
+                }
+
+                body.innerHTML = '';
+                const myName  = (localStorage.getItem('faceverse_player_name') || '').toLowerCase();
+                let myRank    = null;
+
+                snap.docs.forEach((doc, i) => {
+                    const d   = doc.data();
+                    const isMe = myName && d.name.toLowerCase() === myName;
+                    if (isMe && myRank === null) myRank = i + 1;
+
+                    const tr = document.createElement('tr');
+                    tr.style.cssText = `
+                        border-bottom:1px solid var(--card-border);
+                        background: ${isMe ? 'rgba(0,255,204,0.07)' : 'transparent'};
+                        transition:background 0.2s;
+                    `;
+                    tr.innerHTML = `
+                        <td style="padding:14px 20px;font-size:1rem">
+                            ${i < 3 ? MEDAL[i] : '<span style="color:var(--subtitle-color)">' + (i+1) + '</span>'}
+                        </td>
+                        <td style="padding:14px 20px;font-weight:${isMe?'700':'400'};
+                                   color:${isMe?'#00ffcc':'var(--text-color)'}">
+                            ${d.name || 'Anonymous'}
+                            ${isMe ? ' <span style="font-size:0.7rem;color:#00ffcc">(you)</span>' : ''}
+                        </td>
+                        <td style="padding:14px 20px;text-align:right;font-weight:700;
+                                   font-size:1.1rem;color:${mode==='Insane'?'#ff0055':'#00ffcc'}">
+                            ${d.score}
+                        </td>
+                    `;
+                    body.appendChild(tr);
+                });
+
+                table.style.display = 'table';
+
+                if (myRank) {
+                    rankMsg.textContent = `You're ranked #${myRank} globally in ${mode} mode 🔥`;
+                    rankMsg.style.color = mode === 'Insane' ? '#ff0055' : '#00ffcc';
+                }
+
+            } catch (e) {
+                loading.textContent = '⚠️ Could not load leaderboard. Check internet connection.';
+                console.error('[FaceVerse Leaderboard]', e);
+            }
+        }
+
+        // Load normal board on page open
+        setTimeout(() => showBoard('Normal'), 800);
 
         // ─── RUN HISTORY & STATS ────────────────────────────────────
         const runs = JSON.parse(localStorage.getItem('faceverse_runs') || '[]');
