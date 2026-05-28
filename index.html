@@ -596,6 +596,22 @@
                 max-width: 100%;
             }
         }
+        /* ─── FOOTER ────────────────────────────────────────────── */
+        .footer {
+            text-align: center;
+            padding: 60px 20px 40px;
+            color: var(--sub);
+            font-size: 0.85rem;
+            position: relative;
+            z-index: 10;
+        }
+        .footer-brand {
+            font-family: 'Bangers', cursive;
+            font-size: 1.5rem;
+            color: var(--accent);
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+        }
     </style>
 </head>
 
@@ -730,6 +746,13 @@
             </div>
         </div>
     </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p class="footer-brand">FaceVerse AI Suite</p>
+        <p>Built with MediaPipe · Canvas 2D · Three.js · WebGL</p>
+        <p style="margin-top:8px;opacity:0.5;">© 2026 Pranav Pushya</p>
+    </footer>
 
     <script src="main.js"></script>
     <script>

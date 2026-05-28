@@ -30,6 +30,10 @@
         #hud { position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:15; font-size:3rem; color:#fff; text-shadow:2px 2px #000; }
         #guide { position:fixed; top:80px; left:50%; transform:translateX(-50%); z-index:15; font-size:1rem; color:rgba(255,255,255,0.7); font-family:'Segoe UI',sans-serif; letter-spacing:2px; text-shadow:1px 1px 2px #000; }
         #boost-indicator { position:fixed; top:120px; left:50%; transform:translateX(-50%); z-index:15; font-size:1.5rem; color:#ff0055; display:none; text-shadow:0 0 10px #ff0055; }
+        .game-controls { position:fixed; top:20px; right:20px; z-index:9000; display:flex; flex-direction:column; gap:10px; }
+        .game-btn { background:rgba(20,20,20,0.8); border:1px solid #00ffcc; color:#00ffcc; padding:10px 20px; border-radius:8px; cursor:pointer; font-family:'Bangers',cursive; font-size:1.2rem; letter-spacing:1px; backdrop-filter:blur(10px); transition:0.2s; }
+        .game-btn:hover { background:#00ffcc; color:#000; }
+        .pause-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:8000; display:none; justify-content:center; align-items:center; color:#00ffcc; font-size:4rem; backdrop-filter:blur(10px); text-shadow:0 0 20px #00ffcc; flex-direction:column; gap:20px; }
     </style>
 </head>
 <body>
@@ -43,6 +47,16 @@
     <div id="hud">0</div>
     <div id="guide">TILT HEAD L/R TO STEER. OPEN MOUTH TO BOOST.</div>
     <div id="boost-indicator">🚀 BOOST ACTIVATED!</div>
+
+    <div class="game-controls">
+        <button class="game-btn" onclick="togglePause()" id="pause-btn">⏸️ PAUSE</button>
+        <button class="game-btn" onclick="location.reload()">🔄 RESTART</button>
+        <button class="game-btn" onclick="location.href='game_hub.html'">🔙 BACK</button>
+    </div>
+    <div class="pause-overlay" id="pause-overlay">
+        <h1>PAUSED</h1>
+        <button class="btn-norm" style="padding:14px 48px; font-size:1.8rem; font-family:'Bangers',cursive; background:#00ffcc; color:#000; border:none; border-radius:12px; cursor:pointer;" onclick="togglePause()">RESUME</button>
+    </div>
 
     <div class="overlay" id="start-screen">
         <h1>🏎️ HEAD TILT RACER</h1>
@@ -112,6 +126,17 @@
         let laneWidth = 600; // Total road width
 
         let currentMode = 'Normal';
+        let isPaused = false;
+
+        window.togglePause = function() {
+            if (!playing) return;
+            isPaused = !isPaused;
+            document.getElementById('pause-overlay').style.display = isPaused ? 'flex' : 'none';
+            document.getElementById('pause-btn').innerHTML = isPaused ? '▶️ RESUME' : '⏸️ PAUSE';
+            if (!isPaused) {
+                loop(); // resume loop
+            }
+        };
 
         window.initGame = function(mode) {
             currentMode = mode;
@@ -130,7 +155,7 @@
         };
 
         function loop() {
-            if (!playing) return;
+            if (!playing || isPaused) return;
             requestAnimationFrame(loop);
             frame++;
 
@@ -187,11 +212,19 @@
             hud.textContent = score;
 
             // Spawn obstacles
-            const spawnRate = currentMode === 'Insane' ? Math.max(15, 40 - Math.floor(score/50)) : Math.max(25, 60 - Math.floor(score/50));
+            const spawnRate = currentMode === 'Insane' ? Math.max(8, 25 - Math.floor(score/40)) : Math.max(25, 60 - Math.floor(score/50));
             if (frame % spawnRate === 0) {
                 const ox = W/2 + (Math.random() - 0.5) * (laneWidth - 80);
                 const carTypes = ['🚙', '🚕', '🚓', '🚘'];
                 obstacles.push({ x: ox, y: -100, size: 80, type: carTypes[Math.floor(Math.random() * carTypes.length)] });
+                
+                // Spawn an extra obstacle occasionally on Insane
+                if(currentMode === 'Insane' && Math.random() > 0.4) {
+                    const ox2 = W/2 + (Math.random() - 0.5) * (laneWidth - 80);
+                    if(Math.abs(ox2 - ox) > 90) { // Don't overlap too much
+                        obstacles.push({ x: ox2, y: -200, size: 80, type: carTypes[Math.floor(Math.random() * carTypes.length)] });
+                    }
+                }
             }
 
             // Move and Check Collision
@@ -283,8 +316,7 @@
             ctx.shadowColor = 'rgba(0,0,0,0.5)';
             ctx.shadowBlur = 10;
             ctx.shadowOffsetY = 10;
-            const vibX = currentMode === 'Insane' ? (Math.random()-0.5)*10 : 0;
-            ctx.fillText('🏎️', carX + vibX, H - 120);
+            ctx.fillText('🏎️', carX, H - 120);
             ctx.shadowColor = 'transparent';
             
             // Boost / Speed effects (exhaust flames)
