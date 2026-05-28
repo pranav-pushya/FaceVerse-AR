@@ -390,7 +390,7 @@
                     baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`, delegate: "GPU" },
                     outputFaceLandmarks: true,
                     outputFaceBlendshapes: true,
-                    runningMode: "VIDEO", numFaces: 1
+                    runningMode: "VIDEO", minFaceDetectionConfidence: 0.25, minFacePresenceConfidence: 0.25, minTrackingConfidence: 0.25,  numFaces: 1
                 });
 
                 try {

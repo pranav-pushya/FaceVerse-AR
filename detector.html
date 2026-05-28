@@ -180,7 +180,7 @@
         let scene, camera, renderer, sphereMesh;
         let faceLandmarker, video;
         let lastScores = {}; 
-        const SMOOTHING_FACTOR = 0.3; // Lower = Faster response
+        const SMOOTHING_FACTOR = 0.1; // Lower = Faster response (Extremely Snappy)
         let targetColor = new THREE.Color(0xffffff);
         let targetScale = 1.0;
 
@@ -209,8 +209,8 @@
                 renderer.setSize(window.innerWidth, window.innerHeight);
                 document.body.appendChild(renderer.domElement);
 
-                const geometry = new THREE.IcosahedronGeometry(1.8, 1); 
-                const material = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.4 });
+                const geometry = new THREE.IcosahedronGeometry(1.8, 3); // More detail
+                const material = new THREE.MeshBasicMaterial({ color: 0x00ffcc, wireframe: true, transparent: true, opacity: 0.8 });
                 sphereMesh = new THREE.Mesh(geometry, material);
                 scene.add(sphereMesh);
                 scene.add(new THREE.DirectionalLight(0xffffff, 2));
@@ -223,7 +223,7 @@
             if (calibText) calibText.textContent = 'INITIALIZING NEURAL ENGINE...';
             faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
                     baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`, delegate: "GPU" },
-                    outputFaceBlendshapes: true, runningMode: "VIDEO", numFaces: 1
+                    outputFaceBlendshapes: true, runningMode: "VIDEO", minFaceDetectionConfidence: 0.25, minFacePresenceConfidence: 0.25, minTrackingConfidence: 0.25,  numFaces: 1
                 });
 
             if (calibText) calibText.textContent = 'CALIBRATING NEURAL ID...';
