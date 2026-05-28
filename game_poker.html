@@ -143,11 +143,11 @@
             }
 
             // Stability logic
-            if (expressionLevel > 0.15) {
-                stability = Math.max(0, stability - expressionLevel * 8);
-                statusEl.textContent = expressionLevel > 0.3 ? '😬 EXPRESSION DETECTED!' : '⚠️ Stay neutral!';
+            if (expressionLevel > 0.075) {
+                stability = Math.max(0, stability - expressionLevel * 16);
+                statusEl.textContent = expressionLevel > 0.15 ? '😬 EXPRESSION DETECTED!' : '⚠️ Stay neutral!';
                 statusEl.style.opacity = '1';
-                if (typeof FX !== 'undefined' && expressionLevel > 0.3 && Math.random() < 0.05) FX.countdown();
+                if (typeof FX !== 'undefined' && expressionLevel > 0.15 && Math.random() < 0.05) FX.countdown();
             } else {
                 stability = Math.min(100, stability + 0.3);
                 statusEl.style.opacity = '0';

@@ -33,6 +33,9 @@
         .control-pill { background:rgba(0,0,0,0.6); border:1px solid rgba(255,255,255,0.2); padding:10px 20px; border-radius:20px; color:#fff; font-size:0.9rem; font-weight:600; letter-spacing:1px; display:flex; align-items:center; gap:10px; }
         .control-pill .val { color:#00ffcc; font-weight:900; font-family:monospace; font-size:1.1rem; }
         
+        #genre-select { background:transparent; border:none; color:#ffcc00; font-family:'Bangers',cursive; font-size:1.2rem; letter-spacing:1px; cursor:pointer; outline:none; }
+        #genre-select option { background:#111; color:#00ffcc; font-family:'Outfit',sans-serif; }
+
         #fx-flash { position:fixed; inset:0; background:#fff; z-index:25; opacity:0; pointer-events:none; transition:opacity 0.2s; mix-blend-mode:overlay; }
     </style>
 </head>
@@ -47,6 +50,13 @@
     </div>
 
     <div id="controls">
+        <div class="control-pill" style="border-color:#ffcc00;">
+            <select id="genre-select" onchange="changeGenre(this.value)">
+                <option value="electro">⚡ Electro House</option>
+                <option value="synthwave">🌆 Cyberpunk Synthwave</option>
+                <option value="trap">🔥 Trap / Sub-Bass</option>
+            </select>
+        </div>
         <div class="control-pill">YAW (Pan/Pitch) <span class="val" id="val-yaw">0</span></div>
         <div class="control-pill">MOUTH (Bass Drop) <span class="val" id="val-mouth">0</span></div>
         <div class="control-pill">BROWS (Arp Speed) <span class="val" id="val-brows">0</span></div>
@@ -101,9 +111,38 @@
 
         // Audio Context & Nodes
         let audioCtx, mainGain, bassOsc, bassGain, arpOsc, arpGain;
+        let globalDelay, globalFeedback, lowpassFilter;
         let arpInterval;
+        let currentGenre = 'electro';
+        let baseNote = 55; // A1
         let arpNotes = [261.63, 329.63, 392.00, 523.25]; // C E G C
         let arpIdx = 0;
+
+        window.changeGenre = function(genre) {
+            currentGenre = genre;
+            if (genre === 'electro') {
+                if (bassOsc) bassOsc.type = 'square';
+                if (arpOsc) arpOsc.type = 'sawtooth';
+                if (globalDelay) globalDelay.delayTime.setTargetAtTime(0.15, audioCtx ? audioCtx.currentTime : 0, 0.1);
+                if (globalFeedback) globalFeedback.gain.setTargetAtTime(0.3, audioCtx ? audioCtx.currentTime : 0, 0.1);
+                baseNote = 55; // A1
+                arpNotes = [261.63, 329.63, 392.00, 523.25]; // C E G C
+            } else if (genre === 'synthwave') {
+                if (bassOsc) bassOsc.type = 'sawtooth';
+                if (arpOsc) arpOsc.type = 'triangle';
+                if (globalDelay) globalDelay.delayTime.setTargetAtTime(0.4, audioCtx ? audioCtx.currentTime : 0, 0.1);
+                if (globalFeedback) globalFeedback.gain.setTargetAtTime(0.6, audioCtx ? audioCtx.currentTime : 0, 0.1);
+                baseNote = 41.20; // E1
+                arpNotes = [164.81, 196.00, 220.00, 246.94, 329.63]; // E minor
+            } else if (genre === 'trap') {
+                if (bassOsc) bassOsc.type = 'sine'; // Deep sub bass
+                if (arpOsc) arpOsc.type = 'sine'; // High bell
+                if (globalDelay) globalDelay.delayTime.setTargetAtTime(0.125, audioCtx ? audioCtx.currentTime : 0, 0.1);
+                if (globalFeedback) globalFeedback.gain.setTargetAtTime(0.2, audioCtx ? audioCtx.currentTime : 0, 0.1);
+                baseNote = 32.70; // C1
+                arpNotes = [523.25, 622.25, 783.99, 932.33]; // C minor
+            }
+        };
 
         async function setup() {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { width:320, height:240 } });
@@ -125,38 +164,35 @@
 
             // Bass Synth (Continuous)
             bassOsc = audioCtx.createOscillator();
-            bassOsc.type = 'square';
-            bassOsc.frequency.value = 55; // Low A
             bassGain = audioCtx.createGain();
             bassGain.gain.value = 0;
             
-            const lowpass = audioCtx.createBiquadFilter();
-            lowpass.type = 'lowpass';
-            lowpass.frequency.value = 200;
+            lowpassFilter = audioCtx.createBiquadFilter();
+            lowpassFilter.type = 'lowpass';
+            lowpassFilter.frequency.value = 200;
             
-            bassOsc.connect(lowpass);
-            lowpass.connect(bassGain);
+            bassOsc.connect(lowpassFilter);
+            lowpassFilter.connect(bassGain);
             bassGain.connect(mainGain);
             bassOsc.start();
 
             // Arp Synth
             arpOsc = audioCtx.createOscillator();
-            arpOsc.type = 'sawtooth';
             arpGain = audioCtx.createGain();
             arpGain.gain.value = 0;
             
-            const delay = audioCtx.createDelay(0.5);
-            delay.delayTime.value = 0.25;
-            const feedback = audioCtx.createGain();
-            feedback.gain.value = 0.4;
-            delay.connect(feedback);
-            feedback.connect(delay);
+            globalDelay = audioCtx.createDelay(1.0);
+            globalFeedback = audioCtx.createGain();
+            globalDelay.connect(globalFeedback);
+            globalFeedback.connect(globalDelay);
             
             arpOsc.connect(arpGain);
             arpGain.connect(mainGain);
-            arpGain.connect(delay);
-            delay.connect(mainGain);
+            arpGain.connect(globalDelay);
+            globalDelay.connect(mainGain);
             arpOsc.start();
+            
+            changeGenre(document.getElementById('genre-select').value);
         }
 
         window.initGame = function() {
@@ -176,13 +212,13 @@
             if (!playing) return;
             // Play note
             arpOsc.frequency.setValueAtTime(arpNotes[arpIdx], audioCtx.currentTime);
-            arpGain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+            arpGain.gain.setValueAtTime(0.4, audioCtx.currentTime);
             arpGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
             
             arpIdx = (arpIdx + 1) % arpNotes.length;
             
-            // Speed depends on brows
-            const speedMs = browVal > 0.4 ? 100 : 300;
+            // Speed depends on brows smoothly
+            const speedMs = Math.max(60, 400 - browVal * 600);
             setTimeout(runArp, speedMs);
         }
 
@@ -225,25 +261,24 @@
             // Audio Mapping
             if (audioCtx) {
                 // Pitch based on noseX (Yaw)
-                const baseNote = 55; // A1
-                targetBassFreq = baseNote + (noseX - 0.5) * 40; 
+                targetBassFreq = baseNote + (noseX - 0.5) * 400; // MASSIVE sweep
                 bassOsc.frequency.setTargetAtTime(targetBassFreq, audioCtx.currentTime, 0.1);
 
                 // Bass drop logic
-                if (jaw > 0.5 && lastJaw <= 0.5) {
+                if (jaw > 0.25 && lastJaw <= 0.25) {
                     // Trigger Drop
                     document.getElementById('fx-flash').style.opacity = '1';
                     setTimeout(() => document.getElementById('fx-flash').style.opacity = '0', 100);
-                    bassOsc.frequency.setValueAtTime(150, audioCtx.currentTime);
-                    bassOsc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.5);
+                    lowpassFilter.frequency.setTargetAtTime(2000, audioCtx.currentTime, 0.05); // Open filter
+                    bassOsc.frequency.setValueAtTime(baseNote * 4, audioCtx.currentTime);
+                    bassOsc.frequency.exponentialRampToValueAtTime(baseNote / 2, audioCtx.currentTime + 0.5);
                     if (typeof FX !== 'undefined') FX.shutter(); // Add punch
+                } else if (jaw <= 0.25) {
+                    lowpassFilter.frequency.setTargetAtTime(200, audioCtx.currentTime, 0.1); // Close filter
                 }
                 
-                if (jaw > 0.2) {
-                    bassGain.gain.setTargetAtTime(0.4 + jaw*0.3, audioCtx.currentTime, 0.05);
-                } else {
-                    bassGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
-                }
+                // Bass is mostly quiet (0.1) when closed, explodes to 1.5 volume when mouth opens
+                bassGain.gain.setTargetAtTime(0.1 + jaw * 1.4, audioCtx.currentTime, 0.05);
                 
                 lastJaw = jaw;
             }

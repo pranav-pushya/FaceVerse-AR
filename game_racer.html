@@ -195,11 +195,11 @@
 
             // Steer: map noseX (0.2 to 0.8) to screen width
             const targetX = W/2 + (noseX - 0.5) * laneWidth * 2;
-            carX += (targetX - carX) * 0.15; // smooth movement
+            carX += (targetX - carX) * 0.30; // smooth movement
             carX = Math.max(W/2 - laneWidth/2, Math.min(W/2 + laneWidth/2, carX));
 
             // Boost
-            if (jawOpen > 0.4) {
+            if (jawOpen > 0.2) {
                 speed = baseSpeed * 2.5;
                 boostIndicator.style.display = 'block';
                 // Add points faster

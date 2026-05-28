@@ -338,27 +338,27 @@
         const CHALLENGES = [
             {
                 name: "SMILE!", emoji: "😁",
-                check: (s) => (s.mouthSmileLeft + s.mouthSmileRight) / 2 > 0.32
+                check: (s) => (s.mouthSmileLeft + s.mouthSmileRight) / 2 > 0.16
             },
             {
                 name: "OPEN MOUTH!", emoji: "😲",
-                check: (s) => s.jawOpen > 0.35
+                check: (s) => s.jawOpen > 0.17
             },
             {
                 name: "ANGRY!", emoji: "😡",
-                check: (s) => (s.browDownLeft + s.browDownRight) / 2 > 0.3
-                    || s.browInnerUp > 0.25
+                check: (s) => (s.browDownLeft + s.browDownRight) / 2 > 0.15
+                    || s.browInnerUp > 0.12
             },
             {
                 name: "WINK!", emoji: "😉",
-                check: (s) => Math.abs(s.eyeBlinkLeft - s.eyeBlinkRight) > 0.28
-                    || (Math.abs(s.eyeBlinkLeft - s.eyeBlinkRight) > 0.18
-                        && Math.abs(s.cheekSquintLeft - s.cheekSquintRight) > 0.15)
+                check: (s) => Math.abs(s.eyeBlinkLeft - s.eyeBlinkRight) > 0.14
+                    || (Math.abs(s.eyeBlinkLeft - s.eyeBlinkRight) > 0.09
+                        && Math.abs(s.cheekSquintLeft - s.cheekSquintRight) > 0.07)
             },
             {
                 name: "RAISE BROWS!", emoji: "🤨",
-                check: (s) => (s.browOuterUpLeft + s.browOuterUpRight) / 2 > 0.3
-                    || s.browInnerUp > 0.3
+                check: (s) => (s.browOuterUpLeft + s.browOuterUpRight) / 2 > 0.15
+                    || s.browInnerUp > 0.15
             }
         ];
 

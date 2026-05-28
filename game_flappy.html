@@ -144,7 +144,7 @@
             }
 
             // Flap detection
-            if (browValue > 0.45 && frame - lastFlap > 10) {
+            if (browValue > 0.22 && frame - lastFlap > 10) {
                 birdVY = FLAP;
                 lastFlap = frame;
                 if (typeof FX !== 'undefined') FX.tick();
